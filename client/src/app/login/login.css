@@ -1,0 +1,231 @@
+/* login.css */
+
+body {
+  background: radial-gradient(circle at top left, #0d0d1f 0%, #1a103d 100%);
+  min-height: 100vh;
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  color: #fff;
+}
+
+/* Container */
+.login-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  padding: 5rem 1rem;
+}
+
+/* Background glow blobs */
+.login-container::before,
+.login-container::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  animation: pulse 4s infinite alternate;
+}
+
+.login-container::before {
+  top: 10%;
+  left: 10%;
+  width: 300px;
+  height: 300px;
+  background: rgba(120, 60, 255, 0.25);
+}
+
+.login-container::after {
+  bottom: 15%;
+  right: 10%;
+  width: 400px;
+  height: 400px;
+  background: rgba(200, 100, 255, 0.2);
+  animation-delay: 1s;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1.2); opacity: 0.5; }
+}
+
+/* Card */
+.login-card {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  border-radius: 1rem;
+  padding: 2.5rem;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 0 20px rgba(100, 0, 255, 0.15);
+  transition: box-shadow 0.3s;
+}
+
+.login-card:hover {
+  box-shadow: 0 0 30px rgba(150, 0, 255, 0.3);
+}
+
+/* Header */
+.login-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.login-header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.login-header p {
+  color: #b3b3b3;
+}
+
+/* Form Fields */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.9rem;
+  color: #ccc;
+  margin-bottom: 0.5rem;
+}
+
+.input-wrapper {
+  position: relative;
+}
+
+.input-wrapper input {
+  width: 100%;
+  padding: 0.9rem 1rem 0.9rem 2.8rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 0.75rem;
+  color: white;
+  font-size: 1rem;
+  outline: none;
+  transition: box-shadow 0.3s;
+}
+
+.input-wrapper input:focus {
+  box-shadow: 0 0 0 2px #8b5cf6;
+}
+
+.input-wrapper svg {
+  position: absolute;
+  left: 0.9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.1rem;
+  height: 1.1rem;
+  color: #9ca3af;
+}
+
+/* Button */
+.login-btn {
+  width: 100%;
+  padding: 1rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: linear-gradient(to right, #8b5cf6, #6d28d9);
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.login-btn:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 10px rgba(140, 60, 255, 0.4);
+}
+
+.login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Links */
+.login-links {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+  color: #aaa;
+}
+
+.login-links a {
+  color: #a78bfa;
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+.login-links a:hover {
+  color: #c4b5fd;
+}
+
+/* Divider */
+.divider {
+  text-align: center;
+  color: #777;
+  font-size: 0.9rem;
+  margin: 2rem 0;
+  position: relative;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  width: 40%;
+  position: absolute;
+  top: 50%;
+}
+
+.divider::before { left: 0; }
+.divider::after { right: 0; }
+
+/* Social buttons */
+.socials {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.socials button {
+  padding: 0.9rem;
+  border-radius: 0.75rem;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.3s, transform 0.3s;
+}
+
+.socials button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.02);
+}
+
+/* Footer */
+.footer {
+  text-align: center;
+  color: #777;
+  font-size: 0.85rem;
+  margin-top: 2rem;
+}
+
+.footer a {
+  color: #aaa;
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+.footer a:hover {
+  color: #a78bfa;
+}
