@@ -24,24 +24,25 @@ export const AuthProvider = ({ children }) => {
   }, [])
 
   const checkAuth = async () => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      try {
-        const response = await authAPI.getMe()
-        setUser(response.data.user)
-      } catch (error) {
-        localStorage.removeItem('token')
-        setUser(null)
-      }
+    try {
+      // The cookie is automatically sent with this request
+      // because of withCredentials: true in api.js
+      const response = await authAPI.getMe()
+      setUser(response.user)
+    } catch (error) {
+      // If the request fails, the user is not authenticated
+      setUser(null)
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   const signup = async (data) => {
     try {
       const response = await authAPI.signup(data)
-      localStorage.setItem('token', response.data.token)
-      setUser(response.data.user)
+      // The backend sets the cookie automatically
+      // We just need to update the user state
+      setUser(response.user)
       router.push('/chat')
       return { success: true }
     } catch (error) {
@@ -52,8 +53,9 @@ export const AuthProvider = ({ children }) => {
   const login = async (data) => {
     try {
       const response = await authAPI.login(data)
-      localStorage.setItem('token', response.data.token)
-      setUser(response.data.user)
+      // The backend sets the cookie automatically
+      // We just need to update the user state
+      setUser(response.user)
       router.push('/chat')
       return { success: true }
     } catch (error) {
@@ -64,11 +66,14 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await authAPI.logout()
-      localStorage.removeItem('token')
+      // The backend clears the cookie
       setUser(null)
       router.push('/login')
     } catch (error) {
       console.error('Logout error:', error)
+      // Even if the API call fails, clear local state
+      setUser(null)
+      router.push('/login')
     }
   }
 

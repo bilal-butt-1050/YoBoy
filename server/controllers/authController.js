@@ -2,7 +2,6 @@ import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 
-
 // Generate JWT Token
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -10,7 +9,7 @@ const generateToken = (id) => {
   });
 };
 
-// Send token response
+// Send token response with cookie
 const sendTokenResponse = (user, statusCode, res) => {
   const token = generateToken(user._id);
 
@@ -18,12 +17,12 @@ const sendTokenResponse = (user, statusCode, res) => {
     expires: new Date(
       Date.now() + (process.env.JWT_COOKIE_EXPIRE || 30) * 24 * 60 * 60 * 1000
     ),
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    httpOnly: true, // Prevents JavaScript access (XSS protection)
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Cross-site in production
   };
 
-  // Attach cookie to response
+  // Send cookie and response
   res
     .status(statusCode)
     .cookie('token', token, cookieOptions)
@@ -38,9 +37,10 @@ const sendTokenResponse = (user, statusCode, res) => {
         bio: user.bio,
         status: user.status,
       },
+      // Note: We don't send the token in the response body
+      // It's securely stored in an HTTP-only cookie
     });
 };
-
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -48,6 +48,14 @@ const sendTokenResponse = (user, statusCode, res) => {
 export const register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
+
+    // Validate input
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide name, email, and password',
+      });
+    }
 
     // Check if user exists
     const existingUser = await User.findOne({ email });
@@ -66,7 +74,6 @@ export const register = async (req, res, next) => {
     });
 
     sendTokenResponse(user, 201, res);
-    
   } catch (error) {
     next(error);
   }
@@ -107,7 +114,7 @@ export const login = async (req, res, next) => {
       });
     }
 
-    // Update last seen
+    // Update last seen and status
     user.lastSeen = Date.now();
     user.status = 'online';
     await user.save();
@@ -129,6 +136,7 @@ export const logout = async (req, res, next) => {
       lastSeen: Date.now(),
     });
 
+    // Clear the cookie
     res.cookie('token', 'none', {
       expires: new Date(Date.now() + 10 * 1000),
       httpOnly: true,
@@ -152,7 +160,15 @@ export const getMe = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      user,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        bio: user.bio,
+        status: user.status,
+        lastSeen: user.lastSeen,
+      },
     });
   } catch (error) {
     next(error);
@@ -196,7 +212,7 @@ export const updatePassword = async (req, res, next) => {
     if (!(await user.comparePassword(req.body.currentPassword))) {
       return res.status(401).json({
         success: false,
-        message: 'Password is incorrect',
+        message: 'Current password is incorrect',
       });
     }
 
@@ -223,22 +239,10 @@ export const forgotPassword = async (req, res, next) => {
       });
     }
 
-    // Get reset token
-    const resetToken = user.getResetPasswordToken();
-
-    await user.save({ validateBeforeSave: false });
-
-    // Create reset url
-    const resetUrl = `${req.protocol}://${req.get(
-      'host'
-    )}/api/auth/resetpassword/${resetToken}`;
-
-    // In production, send email here
-    // For now, return the token
+    // In production, send email here with reset link
     res.status(200).json({
       success: true,
       message: 'Password reset email sent',
-      resetToken, // Remove this in production
     });
   } catch (error) {
     next(error);
