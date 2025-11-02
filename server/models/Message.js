@@ -19,29 +19,14 @@ const messageSchema = new mongoose.Schema(
     },
     messageType: {
       type: String,
-      enum: ['text', 'image', 'file', 'audio', 'video'],
+      enum: ['text', 'image', 'file'],
       default: 'text',
     },
-    attachments: [
-      {
-        url: String,
-        filename: String,
-        fileType: String,
-        fileSize: Number,
-      },
-    ],
     isRead: {
       type: Boolean,
       default: false,
     },
     readAt: {
-      type: Date,
-    },
-    isDeleted: {
-      type: Boolean,
-      default: false,
-    },
-    deletedAt: {
       type: Date,
     },
   },
@@ -52,7 +37,6 @@ const messageSchema = new mongoose.Schema(
 
 // Index for faster queries
 messageSchema.index({ sender: 1, receiver: 1, createdAt: -1 });
-messageSchema.index({ receiver: 1, isRead: 1 });
 
 const Message = mongoose.model('Message', messageSchema);
 

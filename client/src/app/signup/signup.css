@@ -26,6 +26,7 @@ body {
   position: relative;
   z-index: 1;
   width: 30%;
+  min-width: 400px;
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -43,10 +44,10 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  text-decoration: none;
   color: white;
   font-size: 1.8rem;
   font-weight: 700;
+  text-decoration: none;
 }
 
 .brand-icon {
@@ -92,6 +93,7 @@ body {
   padding: 0.9rem 1rem;
   color: white;
   outline: none;
+  width: 100%;
 }
 
 .field input:focus {
@@ -99,47 +101,25 @@ body {
 }
 
 .password-wrapper {
-  display: flex;
-  align-items: center;
   position: relative;
 }
 
 .password-wrapper button {
   position: absolute;
   right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
   background: none;
   border: none;
   color: #ccc;
   cursor: pointer;
 }
 
-.strength-bar {
-  margin-top: 0.5rem;
-}
-
-.strength {
-  height: 5px;
-  border-radius: 3px;
-  transition: all 0.3s ease;
-  background: #444;
-}
-
-.strength-1 { width: 25%; background: red; }
-.strength-2 { width: 50%; background: orange; }
-.strength-3 { width: 75%; background: blue; }
-.strength-4 { width: 100%; background: green; }
-
 .error-text {
   color: #f87171;
   font-size: 0.8rem;
-}
-
-.success-text {
-  color: #4ade80;
-  font-size: 0.8rem;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  text-align: center;
+  margin-bottom: 1rem;
 }
 
 .terms {
@@ -165,6 +145,10 @@ button[type="submit"] {
   cursor: pointer;
   margin-top: 1rem;
   transition: 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
 button[type="submit"]:hover {
@@ -177,12 +161,19 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 .divider {
   text-align: center;
   margin: 1.5rem 0;
   color: #999;
   font-size: 0.85rem;
-  position: relative;
 }
 
 .socials {

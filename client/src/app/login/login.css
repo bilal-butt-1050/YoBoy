@@ -229,3 +229,12 @@ body {
 .footer a:hover {
   color: #a78bfa;
 }
+
+.spin {
+  animation: spin 1s linear infinite;
+  vertical-align: middle;
+  margin-right: 0.4rem;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
