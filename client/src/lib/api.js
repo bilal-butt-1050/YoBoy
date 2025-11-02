@@ -7,23 +7,10 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // this makes cookies work between frontend and backend
 });
 
-// Add token to requests
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Handle responses
+// Handle responses globally
 api.interceptors.response.use(
   (response) => response.data,
   (error) => {
@@ -34,7 +21,7 @@ api.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
-  signup: (data) => api.post('/auth/signup', data),
+  signup: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
   logout: () => api.post('/auth/logout'),

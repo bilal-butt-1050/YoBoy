@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 
+
 // Generate JWT Token
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -13,28 +14,33 @@ const generateToken = (id) => {
 const sendTokenResponse = (user, statusCode, res) => {
   const token = generateToken(user._id);
 
-  const options = {
+  const cookieOptions = {
     expires: new Date(
       Date.now() + (process.env.JWT_COOKIE_EXPIRE || 30) * 24 * 60 * 60 * 1000
     ),
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: 'lax',
   };
 
-  res.status(statusCode).cookie('token', token, options).json({
-    success: true,
-    token,
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      avatar: user.avatar,
-      bio: user.bio,
-      status: user.status,
-    },
-  });
+  // Attach cookie to response
+  res
+    .status(statusCode)
+    .cookie('token', token, cookieOptions)
+    .json({
+      success: true,
+      message: 'Authenticated successfully',
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        bio: user.bio,
+        status: user.status,
+      },
+    });
 };
+
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -60,6 +66,7 @@ export const register = async (req, res, next) => {
     });
 
     sendTokenResponse(user, 201, res);
+    
   } catch (error) {
     next(error);
   }
