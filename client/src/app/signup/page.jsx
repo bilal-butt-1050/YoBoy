@@ -12,12 +12,17 @@ export default function SignUp() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showVerificationMessage, setShowVerificationMessage] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: ''
   })
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value })
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -36,12 +41,51 @@ export default function SignUp() {
     setLoading(true)
     const { confirmPassword, ...signupData } = formData
     const result = await signup(signupData)
-    if (!result.success) setError(result.message)
+
+    if (result.success) {
+      // Show verification message instead of redirecting
+      setShowVerificationMessage(true)
+    } else {
+      setError(result.message)
+    }
+
     setLoading(false)
   }
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
+  const handleOAuthLogin = (provider) => {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+    window.location.href = `${API_URL}/auth/${provider}`
+  }
+
+  if (showVerificationMessage) {
+    return (
+      <div className="signup-container">
+        <div className="background-overlay"></div>
+
+        <div className="signup-card">
+          <div className="header">
+            <div className="brand">
+              <span className="brand-icon">
+                <MessageCircle size={28} color="white" />
+              </span>
+              ChatFlow
+            </div>
+            <h1>Verify Your Email</h1>
+            <p>
+              We’ve sent a verification link to your email address. Please verify
+              your account before logging in.
+            </p>
+          </div>
+
+          <div className="verification-info">
+            <p>Didn’t receive the email? Check your spam folder or try again later.</p>
+            <Link href="/login" className="back-to-login">
+              Go to Login
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -51,7 +95,9 @@ export default function SignUp() {
       <div className="signup-card">
         <div className="header">
           <div className="brand">
-            <span className="brand-icon"><MessageCircle size={28} color="white" /></span>
+            <span className="brand-icon">
+              <MessageCircle size={28} color="white" />
+            </span>
             ChatFlow
           </div>
           <h1>Create Account</h1>
@@ -62,7 +108,9 @@ export default function SignUp() {
 
         <form onSubmit={handleSubmit} className="form">
           <div className="field">
-            <label htmlFor="name"><User size={16}/> Full Name</label>
+            <label htmlFor="name">
+              <User size={16} /> Full Name
+            </label>
             <input
               type="text"
               id="name"
@@ -76,7 +124,9 @@ export default function SignUp() {
           </div>
 
           <div className="field">
-            <label htmlFor="email"><Mail size={16}/> Email Address</label>
+            <label htmlFor="email">
+              <Mail size={16} /> Email Address
+            </label>
             <input
               type="email"
               id="email"
@@ -90,7 +140,9 @@ export default function SignUp() {
           </div>
 
           <div className="field">
-            <label htmlFor="password"><Lock size={16}/> Password</label>
+            <label htmlFor="password">
+              <Lock size={16} /> Password
+            </label>
             <div className="password-wrapper">
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -102,14 +154,20 @@ export default function SignUp() {
                 disabled={loading}
                 placeholder="••••••••"
               />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} disabled={loading}>
-                {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={loading}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
           </div>
 
           <div className="field">
-            <label htmlFor="confirmPassword"><Lock size={16}/> Confirm Password</label>
+            <label htmlFor="confirmPassword">
+              <Lock size={16} /> Confirm Password
+            </label>
             <div className="password-wrapper">
               <input
                 type={showConfirmPassword ? 'text' : 'password'}
@@ -121,23 +179,29 @@ export default function SignUp() {
                 disabled={loading}
                 placeholder="••••••••"
               />
-              <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} disabled={loading}>
-                {showConfirmPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                disabled={loading}
+              >
+                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
           </div>
 
           <div className="terms">
-            <input type="checkbox" id="terms" required disabled={loading}/>
+            <input type="checkbox" id="terms" required disabled={loading} />
             <label htmlFor="terms">
-              I agree to the <Link href="/terms">Terms of Service</Link> and <Link href="/privacy">Privacy Policy</Link>
+              I agree to the{' '}
+              <Link href="/terms">Terms of Service</Link> and{' '}
+              <Link href="/privacy">Privacy Policy</Link>
             </label>
           </div>
 
           <button type="submit" disabled={loading}>
             {loading ? (
               <>
-                <Loader2 className="spin" size={18}/>
+                <Loader2 className="spin" size={18} />
                 Creating account...
               </>
             ) : (
@@ -149,8 +213,8 @@ export default function SignUp() {
         <div className="divider">Or sign up with</div>
 
         <div className="socials">
-          <button>Google</button>
-          <button>GitHub</button>
+          <button onClick={() => handleOAuthLogin('google')}>Google</button>
+          <button onClick={() => handleOAuthLogin('github')}>GitHub</button>
         </div>
 
         <p className="signin-link">

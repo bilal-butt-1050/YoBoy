@@ -1,31 +1,32 @@
 import express from "express";
+dotenv.config();
+import passport from "./config/passport.js";
 import mongoose from "mongoose";
 import cors from "cors";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import routes from "./routes/index.js";
 
-dotenv.config();
 
 const app = express();
 
 // Middleware
-app.use(cookieParser()); // Parse cookies
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// CORS Configuration - CRITICAL for cookies to work
+// Initialize Passport
+app.use(passport.initialize());
+
+// CORS Configuration
 const allowedOrigins = [
   process.env.CLIENT_URL || "http://localhost:3000",
-  "http://localhost:3000", // Development
-  // Add your production frontend URL here
-  // "https://your-frontend-domain.com"
+  "http://localhost:3000",
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl)
       if (!origin) return callback(null, true);
       
       if (allowedOrigins.indexOf(origin) !== -1) {
@@ -34,7 +35,7 @@ app.use(
         callback(new Error('Not allowed by CORS'));
       }
     },
-    credentials: true, // CRITICAL: Allow cookies to be sent
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
@@ -47,6 +48,11 @@ app.get("/", (req, res) => {
     message: "ChatFlow API is running",
     version: "1.0.0",
     environment: process.env.NODE_ENV || 'development',
+    features: {
+      emailVerification: !!process.env.RESEND_API_KEY,
+      googleOAuth: !!process.env.GOOGLE_CLIENT_ID,
+      githubOAuth: !!process.env.GITHUB_CLIENT_ID,
+    }
   });
 });
 
@@ -94,4 +100,7 @@ app.listen(PORT, () => {
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🌐 CORS Origins:`, allowedOrigins);
   console.log(`🍪 Cookies enabled: true`);
+  console.log(`📧 Email Verification: ${process.env.RESEND_API_KEY ? '✅' : '❌'}`);
+  console.log(`🔐 Google OAuth: ${process.env.GOOGLE_CLIENT_ID ? '✅' : '❌'}`);
+  console.log(`🔐 GitHub OAuth: ${process.env.GITHUB_CLIENT_ID ? '✅' : '❌'}`);
 });

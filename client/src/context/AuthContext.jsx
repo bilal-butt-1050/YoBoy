@@ -40,11 +40,9 @@ export const AuthProvider = ({ children }) => {
   const signup = async (data) => {
     try {
       const response = await authAPI.signup(data)
-      // The backend sets the cookie automatically
-      // We just need to update the user state
-      setUser(response.user)
-      router.push('/chat')
-      return { success: true }
+      // For email verification flow, don't set user or redirect
+      // Just return success so the signup page can show the verification message
+      return { success: true, message: response.message }
     } catch (error) {
       return { success: false, message: error.message }
     }

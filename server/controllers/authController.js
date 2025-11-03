@@ -1,6 +1,7 @@
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../utils/email.js';
 
 // Generate JWT Token
 const generateToken = (id) => {
@@ -10,25 +11,24 @@ const generateToken = (id) => {
 };
 
 // Send token response with cookie
-const sendTokenResponse = (user, statusCode, res) => {
+const sendTokenResponse = (user, statusCode, res, message = 'Authenticated successfully') => {
   const token = generateToken(user._id);
 
   const cookieOptions = {
     expires: new Date(
       Date.now() + (process.env.JWT_COOKIE_EXPIRE || 30) * 24 * 60 * 60 * 1000
     ),
-    httpOnly: true, // Prevents JavaScript access (XSS protection)
-    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Cross-site in production
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
   };
 
-  // Send cookie and response
   res
     .status(statusCode)
     .cookie('token', token, cookieOptions)
     .json({
       success: true,
-      message: 'Authenticated successfully',
+      message,
       user: {
         id: user._id,
         name: user.name,
@@ -36,9 +36,9 @@ const sendTokenResponse = (user, statusCode, res) => {
         avatar: user.avatar,
         bio: user.bio,
         status: user.status,
+        isVerified: user.isVerified,
+        provider: user.provider,
       },
-      // Note: We don't send the token in the response body
-      // It's securely stored in an HTTP-only cookie
     });
 };
 
@@ -71,9 +71,131 @@ export const register = async (req, res, next) => {
       name,
       email,
       password,
+      provider: 'local',
     });
 
-    sendTokenResponse(user, 201, res);
+    // Generate verification token
+    const verificationToken = user.generateVerificationToken();
+    await user.save({ validateBeforeSave: false });
+
+    // Send verification email
+    try {
+      await sendVerificationEmail({
+        email: user.email,
+        name: user.name,
+        verificationToken,
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Registration successful! Please check your email to verify your account.',
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          isVerified: user.isVerified,
+        },
+      });
+    } catch (emailError) {
+      // If email fails, delete the user and return error
+      await User.findByIdAndDelete(user._id);
+      console.error('Email error:', emailError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send verification email. Please try again.',
+      });
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify email
+// @route   GET /api/auth/verify-email/:token
+// @access  Public
+export const verifyEmail = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    // Hash the token from params
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
+
+    // Find user with this token and check if not expired
+    const user = await User.findOne({
+      verificationToken: hashedToken,
+      verificationTokenExpire: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired verification token',
+      });
+    }
+
+    // Update user
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    user.verificationTokenExpire = undefined;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Email verified successfully! You can now log in.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Resend verification email
+// @route   POST /api/auth/resend-verification
+// @access  Public
+export const resendVerification = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide your email',
+      });
+    }
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'No account found with this email',
+      });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'This email is already verified',
+      });
+    }
+
+    // Generate new verification token
+    const verificationToken = user.generateVerificationToken();
+    await user.save({ validateBeforeSave: false });
+
+    // Send verification email
+    await sendVerificationEmail({
+      email: user.email,
+      name: user.name,
+      verificationToken,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Verification email sent! Please check your inbox.',
+    });
   } catch (error) {
     next(error);
   }
@@ -86,7 +208,6 @@ export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    // Validate email & password
     if (!email || !password) {
       return res.status(400).json({
         success: false,
@@ -104,6 +225,14 @@ export const login = async (req, res, next) => {
       });
     }
 
+    // Check if user registered with OAuth
+    if (user.provider !== 'local') {
+      return res.status(401).json({
+        success: false,
+        message: `This account was created with ${user.provider}. Please use ${user.provider} to log in.`,
+      });
+    }
+
     // Check if password matches
     const isMatch = await user.comparePassword(password);
 
@@ -111,6 +240,15 @@ export const login = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials',
+      });
+    }
+
+    // Check if email is verified
+    if (!user.isVerified) {
+      return res.status(403).json({
+        success: false,
+        message: 'Please verify your email before logging in. Check your inbox for the verification link.',
+        needsVerification: true,
       });
     }
 
@@ -123,6 +261,34 @@ export const login = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+// @desc    OAuth Success - Called by passport after successful OAuth
+// @route   GET /api/auth/oauth/success
+// @access  Private (used by passport)
+export const oauthSuccess = (req, res) => {
+  try {
+    if (!req.user) {
+      return res.redirect(`${process.env.CLIENT_URL}/login?error=oauth_failed`);
+    }
+
+    // Update user status
+    req.user.lastSeen = Date.now();
+    req.user.status = 'online';
+    req.user.save();
+
+    sendTokenResponse(req.user, 200, res, 'OAuth login successful');
+  } catch (error) {
+    console.error('OAuth success error:', error);
+    res.redirect(`${process.env.CLIENT_URL}/login?error=oauth_failed`);
+  }
+};
+
+// @desc    OAuth Failure
+// @route   GET /api/auth/oauth/failure
+// @access  Public
+export const oauthFailure = (req, res) => {
+  res.redirect(`${process.env.CLIENT_URL}/login?error=oauth_failed`);
 };
 
 // @desc    Logout user
@@ -168,6 +334,8 @@ export const getMe = async (req, res, next) => {
         bio: user.bio,
         status: user.status,
         lastSeen: user.lastSeen,
+        isVerified: user.isVerified,
+        provider: user.provider,
       },
     });
   } catch (error) {
@@ -208,6 +376,14 @@ export const updatePassword = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id).select('+password');
 
+    // Check if user uses local auth
+    if (user.provider !== 'local') {
+      return res.status(400).json({
+        success: false,
+        message: `You signed up with ${user.provider}. Password change is not available.`,
+      });
+    }
+
     // Check current password
     if (!(await user.comparePassword(req.body.currentPassword))) {
       return res.status(401).json({
@@ -219,7 +395,7 @@ export const updatePassword = async (req, res, next) => {
     user.password = req.body.newPassword;
     await user.save();
 
-    sendTokenResponse(user, 200, res);
+    sendTokenResponse(user, 200, res, 'Password updated successfully');
   } catch (error) {
     next(error);
   }
@@ -239,11 +415,50 @@ export const forgotPassword = async (req, res, next) => {
       });
     }
 
-    // In production, send email here with reset link
-    res.status(200).json({
-      success: true,
-      message: 'Password reset email sent',
-    });
+    // Check if user uses local auth
+    if (user.provider !== 'local') {
+      return res.status(400).json({
+        success: false,
+        message: `You signed up with ${user.provider}. Please use ${user.provider} to log in.`,
+      });
+    }
+
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+
+    // Hash token and save to user
+    user.resetPasswordToken = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex');
+
+    user.resetPasswordExpire = Date.now() + 60 * 60 * 1000; // 1 hour
+
+    await user.save({ validateBeforeSave: false });
+
+    // Send password reset email
+    try {
+      await sendPasswordResetEmail({
+        email: user.email,
+        name: user.name,
+        resetToken,
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Password reset email sent! Please check your inbox.',
+      });
+    } catch (emailError) {
+      // Clear reset token if email fails
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpire = undefined;
+      await user.save({ validateBeforeSave: false });
+
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send password reset email',
+      });
+    }
   } catch (error) {
     next(error);
   }
@@ -278,7 +493,7 @@ export const resetPassword = async (req, res, next) => {
     user.resetPasswordExpire = undefined;
     await user.save();
 
-    sendTokenResponse(user, 200, res);
+    sendTokenResponse(user, 200, res, 'Password reset successful');
   } catch (error) {
     next(error);
   }
