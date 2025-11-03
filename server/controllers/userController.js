@@ -1,106 +1,54 @@
 import User from '../models/User.js';
 
-// @desc    Get all users
-// @route   GET /api/users
-// @access  Private
+// GET ALL USERS
 export const getUsers = async (req, res, next) => {
   try {
-    const users = await User.find({ _id: { $ne: req.user._id } })
-      .select('-password')
-      .sort('-createdAt');
-
-    res.status(200).json({
-      success: true,
-      count: users.length,
-      users,
-    });
+    const users = await User.find().select('-password -verificationToken -resetPasswordToken');
+    res.status(200).json({ success: true, users });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Get user by ID
-// @route   GET /api/users/:id
-// @access  Private
+// GET USER BY ID
 export const getUserById = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      user,
-    });
+    const user = await User.findById(req.params.id).select('-password -verificationToken -resetPasswordToken');
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+    res.status(200).json({ success: true, user });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Search users
-// @route   GET /api/users/search?query=
-// @access  Private
+// SEARCH USERS BY NAME OR USERNAME
 export const searchUsers = async (req, res, next) => {
   try {
-    const { query } = req.query;
-
-    if (!query) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide a search query',
-      });
-    }
+    const { q } = req.query;
+    if (!q) return res.status(400).json({ success: false, message: 'Query parameter is required' });
 
     const users = await User.find({
-      _id: { $ne: req.user._id },
       $or: [
-        { name: { $regex: query, $options: 'i' } },
-        { email: { $regex: query, $options: 'i' } },
+        { name: { $regex: q, $options: 'i' } },
+        { username: { $regex: q, $options: 'i' } },
       ],
-    })
-      .select('-password')
-      .limit(10);
+    }).select('-password -verificationToken -resetPasswordToken');
 
-    res.status(200).json({
-      success: true,
-      count: users.length,
-      users,
-    });
+    res.status(200).json({ success: true, users });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Update user status
-// @route   PUT /api/users/status
-// @access  Private
+// UPDATE USER STATUS
 export const updateStatus = async (req, res, next) => {
   try {
     const { status } = req.body;
+    if (!['online', 'offline', 'away', 'busy'].includes(status))
+      return res.status(400).json({ success: false, message: 'Invalid status value' });
 
-    const validStatuses = ['online', 'offline', 'away', 'busy'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid status',
-      });
-    }
-
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      { status, lastSeen: Date.now() },
-      { new: true, runValidators: true }
-    );
-
-    res.status(200).json({
-      success: true,
-      user,
-    });
+    const user = await User.findByIdAndUpdate(req.user._id, { status, lastSeen: Date.now() }, { new: true });
+    res.status(200).json({ success: true, message: `Status updated to ${status}`, user });
   } catch (error) {
     next(error);
   }

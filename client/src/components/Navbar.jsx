@@ -16,7 +16,7 @@ export default function Navbar() {
 
   const authLinks = isAuthenticated
     ? [
-        { href: '/chat', label: 'Chat' },
+        { href: '/dashboard', label: 'Dashboard' },
       ]
     : [
         { href: '/login', label: 'Login' },

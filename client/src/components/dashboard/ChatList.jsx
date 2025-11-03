@@ -10,9 +10,10 @@ export default function ChatList({
   searchQuery,
   setSearchQuery,
   loading,
+  onlineUsers = new Set(),
 }) {
   const getUserInitials = (name) =>
-    name
+    (name || '')
       .split(' ')
       .map((w) => w[0])
       .join('')
@@ -47,35 +48,34 @@ export default function ChatList({
             <p>No conversations found</p>
           </div>
         ) : (
-          users.map((user) => (
-            <div
-              key={user.id || user._id}
-              className={`chat-item ${
-                selectedChat?.id === (user.id || user._id) ? 'active' : ''
-              }`}
-              onClick={() => onSelectChat(user)}
-            >
-              <div className="chat-avatar-container">
-                <div className="chat-avatar">
-                  {user.avatar ? (
-                    <img src={user.avatar} alt={user.name} />
-                  ) : (
-                    getUserInitials(user.name)
-                  )}
+          users.map((user) => {
+            const userId = (user._id || user.id || '').toString()
+            const isActive = selectedChat && (selectedChat._id || selectedChat.id || '').toString() === userId
+            const isOnline = onlineUsers && onlineUsers.has && onlineUsers.has(userId)
+
+            return (
+              <div
+                key={userId}
+                className={`chat-item ${isActive ? 'active' : ''}`}
+                onClick={() => onSelectChat(user)}
+              >
+                <div className="chat-avatar-container">
+                  <div className="chat-avatar">
+                    {user.avatar ? <img src={user.avatar} alt={user.name} /> : getUserInitials(user.name)}
+                  </div>
+                  {isOnline && <div className="online-indicator" />}
                 </div>
-                {user.status === 'online' && <div className="online-indicator" />}
+                <div className="chat-info">
+                  <div className="chat-header">
+                    <h4>{user.name}</h4>
+                  </div>
+                  <div className="chat-preview">
+                    <p>{user.lastMessage?.content || user.lastMessage || ''}</p>
+                  </div>
+                </div>
               </div>
-              <div className="chat-info">
-                <div className="chat-header">
-                  <h4>{user.name}</h4>
-                  {/* Optionally add last message timestamp */}
-                </div>
-                <div className="chat-preview">
-                  <p>{user.lastMessage || ''}</p>
-                </div>
-              </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
     </div>

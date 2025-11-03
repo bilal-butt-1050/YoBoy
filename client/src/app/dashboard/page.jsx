@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Sidebar from '@/components/dashboard/Sidebar'
 import ChatList from '@/components/dashboard/ChatList'
 import ChatWindow from '@/components/dashboard/ChatWindow'
@@ -8,124 +8,97 @@ import SearchUsers from '@/components/dashboard/SearchUsers'
 import Profile from '@/components/dashboard/Profile'
 import Settings from '@/components/dashboard/Settings'
 import { useAuth } from '../../context/AuthContext'
-import { usersAPI, messagesAPI } from '../../lib/api'
 import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import useChat from '@/hooks/useChat'
 import './dashboard.css'
 
-export default function Dashboard() {
+export default function DashboardPage() {
   const { user, logout, isAuthenticated, loading: authLoading } = useAuth()
   const router = useRouter()
+
   const [activeView, setActiveView] = useState('chats')
-  const [selectedChat, setSelectedChat] = useState(null)
-  const [users, setUsers] = useState([])
-  const [conversations, setConversations] = useState([])
-  const [messages, setMessages] = useState([])
-  const [newMessage, setNewMessage] = useState('')
+  const [selectedChat, setSelectedChat] = useState(null) // selected user object
   const [searchQuery, setSearchQuery] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [sending, setSending] = useState(false)
   const messagesEndRef = useRef(null)
 
-  // Redirect if not authenticated
+  const {
+    socketConnected,
+    messages,
+    conversations,
+    fetchConversations,
+    fetchUsers,
+    joinConversation,
+    sendMessage,
+    markAsRead,
+    startTyping,
+    stopTyping,
+    onlineUsers,
+    isTyping,
+    loading: chatLoading,
+  } = useChat(user)
+
+  // redirect if not auth
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
       router.push('/login')
     }
   }, [authLoading, isAuthenticated, router])
 
-  // Fetch users & conversations
+  // initial load of convos + users
   useEffect(() => {
-    if (isAuthenticated) {
-      fetchConversations()
-      fetchUsers()
-    }
-  }, [isAuthenticated])
+    if (!user) return
+    fetchConversations()
+    // optional: fetchUsers() if you need user directory (search page uses its own fetch)
+  }, [user, fetchConversations])
 
-  // Fetch messages when selectedChat changes
+  // when selected chat changes: join room + scroll/load messages
   useEffect(() => {
-    if (selectedChat) {
-      fetchMessages(selectedChat.id || selectedChat._id)
-    }
-  }, [selectedChat])
+    if (!selectedChat) return
+    const otherId = selectedChat._id || selectedChat.id
+    joinConversation(otherId)
+  }, [selectedChat, joinConversation])
 
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-
-  const fetchConversations = async () => {
-    try {
-      const response = await messagesAPI.getConversations()
-      setConversations(response || [])
-    } catch (error) {
-      console.error('Error fetching conversations:', error)
-    }
-  }
-
-  const fetchUsers = async () => {
-    try {
-      const response = await usersAPI.getUsers()
-      setUsers(response.users || [])
-      setLoading(false)
-    } catch (error) {
-      console.error('Error fetching users:', error)
-      setLoading(false)
-    }
-  }
-
-  const fetchMessages = async (userId) => {
-    try {
-      const response = await messagesAPI.getMessages(userId)
-      setMessages(response || [])
-    } catch (error) {
-      console.error('Error fetching messages:', error)
-    }
-  }
-
-  const handleSendMessage = async (e) => {
-    e.preventDefault()
-    if (!newMessage.trim() || !selectedChat || sending) return
-
-    setSending(true)
-    try {
-      const response = await messagesAPI.sendMessage({
-        receiverId: selectedChat.id || selectedChat._id,
-        content: newMessage.trim(),
-      })
-      setMessages([...messages, response])
-      setNewMessage('')
-      await fetchConversations()
-    } catch (error) {
-      console.error('Error sending message:', error)
-    } finally {
-      setSending(false)
-    }
-  }
-
-  const handleUserSelect = (userData) => {
-    setSelectedChat(userData)
+  // Click handler from chat list
+  const handleUserSelect = (userObj) => {
+    setSelectedChat(userObj)
     setActiveView('chats')
   }
 
-  const filteredUsers = searchQuery
-    ? users.filter(
-        (u) =>
-          u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          u.email.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    : users
-
-  const getDisplayUsers = () => {
-    if (conversations && conversations.length > 0) {
-      return conversations.map((conv) => conv.user).filter(Boolean) // also filter out any null/undefined users
-    }
-    return filteredUsers || []
+  // send message wrapper (ChatWindow will manage its local input state)
+  const handleSendMessage = async (content) => {
+    if (!selectedChat) return
+    await sendMessage({ receiverId: selectedChat._id || selectedChat.id, content })
+    // refresh conversations so sidebar shows latest; light and infrequent
+    fetchConversations()
+    // scroll handled by ChatWindow via messagesEndRef
   }
+
+  // mark a message read (when message becomes visible)
+  const handleMarkAsRead = (messageId) => {
+    markAsRead(messageId)
+    // optionally refresh conversations if you want
+  }
+
+  const filteredUsersFromConversations = () => {
+    if (Array.isArray(conversations) && conversations.length > 0) {
+      return conversations
+        .map((conv) => ({
+          ...conv.user,
+          lastMessage: conv.lastMessage,
+        }))
+        .filter(Boolean)
+    }
+    return []
+  }
+
+  const filteredUsers = searchQuery
+    ? filteredUsersFromConversations().filter(
+        (u) =>
+          u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          u.email?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : filteredUsersFromConversations()
 
   const renderMainContent = () => {
     switch (activeView) {
@@ -133,22 +106,25 @@ export default function Dashboard() {
         return (
           <div className="chat-container">
             <ChatList
-              users={getDisplayUsers()}
+              users={filteredUsers}
               selectedChat={selectedChat}
               onSelectChat={handleUserSelect}
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
-              loading={loading}
+              loading={chatLoading}
+              onlineUsers={onlineUsers}
             />
             <ChatWindow
               selectedChat={selectedChat}
               currentUser={user}
               messages={messages}
-              newMessage={newMessage}
-              setNewMessage={setNewMessage}
-              sending={sending}
               onSendMessage={handleSendMessage}
               messagesEndRef={messagesEndRef}
+              startTyping={() => startTyping(selectedChat?._id || selectedChat?.id)}
+              stopTyping={() => stopTyping(selectedChat?._id || selectedChat?.id)}
+              isTyping={isTyping}
+              markAsRead={handleMarkAsRead}
+              sending={false}
             />
           </div>
         )
@@ -163,7 +139,7 @@ export default function Dashboard() {
     }
   }
 
-  if (authLoading || loading) {
+  if (authLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary-500" />

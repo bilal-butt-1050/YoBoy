@@ -11,16 +11,23 @@ const userSchema = new mongoose.Schema(
       minlength: 2,
       maxlength: 50,
     },
+    username: {
+      type: String,
+      required: [true, 'Please provide a username'],
+      unique: true,
+      lowercase: true,
+      trim: true,
+      minlength: 3,
+      maxlength: 30,
+      match: [/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'],
+    },
     email: {
       type: String,
       required: [true, 'Please provide your email'],
       unique: true,
       lowercase: true,
       trim: true,
-      match: [
-        /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
-        'Please provide a valid email',
-      ],
+      match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email'],
     },
     password: {
       type: String,
@@ -38,21 +45,21 @@ const userSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['online', 'offline', 'away'],
+      enum: ['online', 'offline', 'away', 'busy'],
       default: 'offline',
     },
     lastSeen: {
       type: Date,
       default: Date.now,
     },
-    // Email Verification Fields
     isVerified: {
       type: Boolean,
       default: false,
     },
     verificationToken: String,
     verificationTokenExpire: Date,
-    // OAuth Fields
+    resetPasswordToken: String,
+    resetPasswordExpire: Date,
     provider: {
       type: String,
       enum: ['local', 'google', 'github'],
@@ -60,66 +67,44 @@ const userSchema = new mongoose.Schema(
     },
     providerId: {
       type: String,
-      sparse: true, // Allows multiple null values
+      sparse: true,
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-// Hash password before saving (only for local auth)
+// Hash password before saving
 userSchema.pre('save', async function (next) {
-  // Only hash password if it's modified and exists
   if (!this.isModified('password') || !this.password) return next();
-
-  try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
-    next();
-  } catch (error) {
-    next(error);
-  }
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
 });
 
-// Compare password method
+// Compare password
 userSchema.methods.comparePassword = async function (candidatePassword) {
-  try {
-    if (!this.password) {
-      throw new Error('No password set for this user');
-    }
-    return await bcrypt.compare(candidatePassword, this.password);
-  } catch (error) {
-    throw new Error(error);
-  }
+  if (!this.password) throw new Error('No password set for this user');
+  return await bcrypt.compare(candidatePassword, this.password);
 };
 
 // Generate email verification token
 userSchema.methods.generateVerificationToken = function () {
-  // Generate token
   const verificationToken = crypto.randomBytes(32).toString('hex');
-
-  // Hash token and set to verificationToken field
-  this.verificationToken = crypto
-    .createHash('sha256')
-    .update(verificationToken)
-    .digest('hex');
-
-  // Set expire time (24 hours)
+  this.verificationToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
   this.verificationTokenExpire = Date.now() + 24 * 60 * 60 * 1000;
-
   return verificationToken;
 };
 
-// Remove password from JSON response
+// Remove sensitive info
 userSchema.methods.toJSON = function () {
-  const user = this.toObject();
-  delete user.password;
-  delete user.verificationToken;
-  delete user.verificationTokenExpire;
-  return user;
+  const obj = this.toObject();
+  delete obj.password;
+  delete obj.verificationToken;
+  delete obj.verificationTokenExpire;
+  delete obj.resetPasswordToken;
+  delete obj.resetPasswordExpire;
+  return obj;
 };
 
 const User = mongoose.model('User', userSchema);
-
 export default User;
