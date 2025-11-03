@@ -1,15 +1,36 @@
 'use client'
 
-import { useState } from 'react'
-import { 
-  User, Mail, Lock, Bell, Shield, Palette, Globe, 
-  Smartphone, Eye, EyeOff, Save, X, Check, 
-  Moon, Sun, Monitor, Languages, Volume2, Download,
-  Trash2, LogOut, AlertCircle
+import { useState, useEffect } from 'react'
+import {
+  User,
+  Mail,
+  Lock,
+  Bell,
+  Shield,
+  Palette,
+  Globe,
+  Smartphone,
+  Eye,
+  EyeOff,
+  Save,
+  X,
+  Check,
+  Moon,
+  Sun,
+  Monitor,
+  Languages,
+  Volume2,
+  Download,
+  Trash2,
+  LogOut,
+  AlertCircle,
 } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
+import { usersAPI, authAPI } from '../../lib/api'
 import './settings.css'
 
 export default function Settings() {
+  const { user, loading } = useAuth()
   const [activeTab, setActiveTab] = useState('account')
   const [showOldPassword, setShowOldPassword] = useState(false)
   const [showNewPassword, setShowNewPassword] = useState(false)
@@ -18,11 +39,11 @@ export default function Settings() {
 
   // Account Settings State
   const [accountData, setAccountData] = useState({
-    fullName: 'John Doe',
-    email: 'john.doe@example.com',
-    username: 'johndoe',
-    phone: '+1 234 567 8900',
-    bio: 'Passionate developer and tech enthusiast'
+    fullName: '',
+    email: '',
+    username: '',
+    phone: '',
+    bio: '',
   })
 
   // Security Settings State
@@ -31,8 +52,20 @@ export default function Settings() {
     newPassword: '',
     confirmPassword: '',
     twoFactorEnabled: true,
-    biometricEnabled: false
+    biometricEnabled: false,
   })
+
+  useEffect(() => {
+    if (user) {
+      setAccountData({
+        fullName: user.name || '',
+        email: user.email || '',
+        username: user.username || '',
+        phone: user.phone || '',
+        bio: user.bio || '',
+      })
+    }
+  }, [user])
 
   // Notification Settings State
   const [notificationSettings, setNotificationSettings] = useState({
@@ -115,21 +148,46 @@ export default function Settings() {
     })
   }
 
-  const handleSave = () => {
-    setSaveSuccess(true)
-    setTimeout(() => setSaveSuccess(false), 3000)
-    console.log('Settings saved:', {
-      account: accountData,
-      security: securityData,
-      notifications: notificationSettings,
-      appearance: appearanceSettings,
-      privacy: privacySettings,
-      language: languageSettings
-    })
+  const handleSave = async () => {
+    try {
+      await usersAPI.updateProfile(accountData)
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
+    } catch (error) {
+      console.error('Error saving settings:', error)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    if (securityData.newPassword !== securityData.confirmPassword) {
+      alert("New passwords don't match!")
+      return
+    }
+    try {
+      await authAPI.changePassword({
+        oldPassword: securityData.oldPassword,
+        newPassword: securityData.newPassword,
+      })
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
+      setSecurityData({
+        ...securityData,
+        oldPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      })
+    } catch (error) {
+      console.error('Error changing password:', error)
+      alert('Error changing password. Please check your old password.')
+    }
   }
 
   const handleDeleteAccount = () => {
-    if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+    if (
+      confirm(
+        'Are you sure you want to delete your account? This action cannot be undone.',
+      )
+    ) {
       console.log('Account deletion requested')
     }
   }
@@ -157,11 +215,17 @@ export default function Settings() {
     { value: 'orange', color: '#f59e0b' }
   ]
 
+if (loading) {
+    return <div>Loading...</div>
+  }
+
   return (
     <div className="settings-container">
       <div className="settings-header">
         <h1 className="settings-title">Settings</h1>
-        <p className="settings-subtitle">Manage your account settings and preferences</p>
+        <p className="settings-subtitle">
+          Manage your account settings and preferences
+        </p>
       </div>
 
       {saveSuccess && (
@@ -261,7 +325,10 @@ export default function Settings() {
                   />
                 </div>
 
-                <button onClick={handleSave} className="settings-btn settings-btn-primary">
+                <button
+                  onClick={handleChangePassword}
+                  className="settings-btn settings-btn-primary"
+                >
                   <Save className="settings-btn-icon" />
                   Save Changes
                 </button>
@@ -338,7 +405,9 @@ export default function Settings() {
                     />
                     <button
                       type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      onClick={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
                       className="settings-password-toggle"
                     >
                       {showConfirmPassword ? <EyeOff /> : <Eye />}
@@ -346,7 +415,10 @@ export default function Settings() {
                   </div>
                 </div>
 
-                <button onClick={handleSave} className="settings-btn settings-btn-primary">
+                <button
+                  onClick={handleChangePassword}
+                  className="settings-btn settings-btn-primary"
+                >
                   Update Password
                 </button>
 

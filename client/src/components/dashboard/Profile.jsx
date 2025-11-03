@@ -1,29 +1,49 @@
 'use client'
 
 import { useState } from 'react'
-import { Camera, Mail, Calendar, User as UserIcon, AtSign, Edit2, Save, X } from 'lucide-react'
+import {
+  Camera,
+  Mail,
+  Calendar,
+  User as UserIcon,
+  AtSign,
+  Edit2,
+  Save,
+  X,
+} from 'lucide-react'
+import { usersAPI } from '../../lib/api'
+import { useAuth } from '../../context/AuthContext'
 import './profile.css'
 
-export default function Profile({ user }) {
+export default function Profile() {
+  const { user, loading, checkAuth } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({
-    name: user.name,
-    username: user.username,
-    email: user.email,
-    bio: user.bio
+    name: user?.name || '',
+    username: user?.username || '',
+    email: user?.email || '',
+    bio: user?.bio || '',
   })
+  const [success, setSuccess] = useState(false)
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     })
   }
 
-  const handleSave = () => {
-    console.log('Saving profile:', formData)
-    // Backend logic will be added here
-    setIsEditing(false)
+  const handleSave = async () => {
+    try {
+      const updatedUser = await usersAPI.updateProfile(formData)
+      await checkAuth()
+      setIsEditing(false)
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+    } catch (error) {
+      console.error('Error updating profile:', error)
+      // Handle error display
+    }
   }
 
   const handleCancel = () => {
@@ -31,7 +51,7 @@ export default function Profile({ user }) {
       name: user.name,
       username: user.username,
       email: user.email,
-      bio: user.bio
+      bio: user.bio,
     })
     setIsEditing(false)
   }
@@ -44,7 +64,7 @@ export default function Profile({ user }) {
   const getUserInitials = (name) => {
     return name
       .split(' ')
-      .map(word => word[0])
+      .map((word) => word[0])
       .join('')
       .toUpperCase()
       .slice(0, 2)
@@ -52,11 +72,15 @@ export default function Profile({ user }) {
 
   const formatDate = (dateString) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', { 
-      month: 'long', 
-      day: 'numeric', 
-      year: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
     })
+  }
+
+  if (loading || !user) {
+    return <div>Loading...</div>
   }
 
   return (
@@ -64,12 +88,17 @@ export default function Profile({ user }) {
       <div className="profile-header-section">
         <h2>My Profile</h2>
         <p>Manage your personal information and preferences</p>
+        {success && (
+          <div className="p-4 mb-4 text-sm text-green-700 bg-green-100 rounded-lg">
+            Profile updated successfully!
+          </div>
+        )}
       </div>
 
       <div className="profile-content">
         <div className="profile-card">
           <div className="profile-banner"></div>
-          
+
           <div className="profile-avatar-section">
             <div className="profile-avatar-wrapper">
               <div className="profile-avatar-large">
@@ -79,8 +108,8 @@ export default function Profile({ user }) {
                   getUserInitials(user.name)
                 )}
               </div>
-              <button 
-                className="avatar-upload-btn" 
+              <button
+                className="avatar-upload-btn"
                 onClick={handleAvatarUpload}
                 title="Change avatar"
               >
@@ -151,7 +180,9 @@ export default function Profile({ user }) {
                     rows="3"
                     maxLength="150"
                   />
-                  <span className="char-count">{formData.bio.length}/150</span>
+                  <span className="char-count">
+                    {formData.bio.length}/150
+                  </span>
                 </div>
 
                 <div className="form-actions">
@@ -172,7 +203,10 @@ export default function Profile({ user }) {
                   <p className="profile-username">@{user.username}</p>
                 </div>
 
-                <button className="btn-edit" onClick={() => setIsEditing(true)}>
+                <button
+                  className="btn-edit"
+                  onClick={() => setIsEditing(true)}
+                >
                   <Edit2 size={18} />
                   Edit Profile
                 </button>
@@ -194,7 +228,9 @@ export default function Profile({ user }) {
                     </div>
                     <div className="info-content">
                       <span className="info-label">Joined</span>
-                      <span className="info-value">{formatDate(user.joinedDate)}</span>
+                      <span className="info-value">
+                        {formatDate(user.createdAt)}
+                      </span>
                     </div>
                   </div>
                 </div>

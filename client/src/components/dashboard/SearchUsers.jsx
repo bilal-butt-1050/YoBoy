@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Search, UserPlus, MessageCircle } from 'lucide-react'
+import { usersAPI } from '../../lib/api'
 import './searchUsers.css'
 
 export default function SearchUsers({ currentUser }) {
@@ -9,27 +10,19 @@ export default function SearchUsers({ currentUser }) {
   const [searchResults, setSearchResults] = useState([])
   const [isSearching, setIsSearching] = useState(false)
 
-  // Mock search function - will be replaced with actual API call
-  const mockUsers = [
-    { id: '5', name: 'Emma Wilson', username: 'emmaw', bio: 'Coffee lover ☕', online: true },
-    { id: '6', name: 'Michael Chen', username: 'mchen', bio: 'Tech enthusiast 💻', online: false },
-    { id: '7', name: 'Sarah Davis', username: 'sarahd', bio: 'Designer & Photographer 📸', online: true },
-    { id: '8', name: 'James Taylor', username: 'jtaylor', bio: 'Music producer 🎵', online: false },
-  ]
-
-  const handleSearch = (e) => {
+  const handleSearch = async (e) => {
     e.preventDefault()
     if (searchQuery.trim()) {
       setIsSearching(true)
-      // Simulate API call
-      setTimeout(() => {
-        const results = mockUsers.filter(user =>
-          user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          user.username.toLowerCase().includes(searchQuery.toLowerCase())
-        )
+      try {
+        const results = await usersAPI.searchUsers(searchQuery.trim())
         setSearchResults(results)
+      } catch (error) {
+        console.error('Error searching users:', error)
+        setSearchResults([])
+      } finally {
         setIsSearching(false)
-      }, 500)
+      }
     }
   }
 
@@ -46,7 +39,7 @@ export default function SearchUsers({ currentUser }) {
   const getUserInitials = (name) => {
     return name
       .split(' ')
-      .map(word => word[0])
+      .map((word) => word[0])
       .join('')
       .toUpperCase()
       .slice(0, 2)
@@ -70,7 +63,11 @@ export default function SearchUsers({ currentUser }) {
             className="search-input-large"
           />
         </div>
-        <button type="submit" className="search-submit-btn" disabled={!searchQuery.trim()}>
+        <button
+          type="submit"
+          className="search-submit-btn"
+          disabled={!searchQuery.trim()}
+        >
           Search
         </button>
       </form>
@@ -85,10 +82,13 @@ export default function SearchUsers({ currentUser }) {
           <>
             <div className="results-header">
               <h3>Search Results</h3>
-              <span className="results-count">{searchResults.length} user{searchResults.length !== 1 ? 's' : ''} found</span>
+              <span className="results-count">
+                {searchResults.length} user{searchResults.length !== 1 ? 's' : ''}
+                found
+              </span>
             </div>
             <div className="users-grid">
-              {searchResults.map(user => (
+              {searchResults.map((user) => (
                 <div key={user.id} className="user-card">
                   <div className="user-card-header">
                     <div className="user-card-avatar-container">
@@ -104,14 +104,14 @@ export default function SearchUsers({ currentUser }) {
                     </div>
                   </div>
                   <div className="user-card-actions">
-                    <button 
+                    <button
                       className="user-action-btn primary"
                       onClick={() => handleStartChat(user)}
                     >
                       <MessageCircle size={18} />
                       Message
                     </button>
-                    <button 
+                    <button
                       className="user-action-btn secondary"
                       onClick={() => handleAddFriend(user)}
                     >
@@ -133,7 +133,9 @@ export default function SearchUsers({ currentUser }) {
           <div className="search-empty-state">
             <div className="empty-state-icon">👥</div>
             <h3>Discover New Connections</h3>
-            <p>Search for users by their name or username to start chatting</p>
+            <p>
+              Search for users by their name or username to start chatting
+            </p>
           </div>
         )}
       </div>

@@ -45,7 +45,7 @@ export default function Dashboard() {
   // Fetch messages when selectedChat changes
   useEffect(() => {
     if (selectedChat) {
-      fetchMessages(selectedChat.id)
+      fetchMessages(selectedChat.id || selectedChat._id)
     }
   }, [selectedChat])
 
@@ -61,7 +61,7 @@ export default function Dashboard() {
   const fetchConversations = async () => {
     try {
       const response = await messagesAPI.getConversations()
-      setConversations(response.data || [])
+      setConversations(response || [])
     } catch (error) {
       console.error('Error fetching conversations:', error)
     }
@@ -70,7 +70,7 @@ export default function Dashboard() {
   const fetchUsers = async () => {
     try {
       const response = await usersAPI.getUsers()
-      setUsers(response.data || [])
+      setUsers(response.users || [])
       setLoading(false)
     } catch (error) {
       console.error('Error fetching users:', error)
@@ -81,7 +81,7 @@ export default function Dashboard() {
   const fetchMessages = async (userId) => {
     try {
       const response = await messagesAPI.getMessages(userId)
-      setMessages(response.data || [])
+      setMessages(response || [])
     } catch (error) {
       console.error('Error fetching messages:', error)
     }
@@ -94,10 +94,10 @@ export default function Dashboard() {
     setSending(true)
     try {
       const response = await messagesAPI.sendMessage({
-        receiver: selectedChat.id,
+        receiverId: selectedChat.id || selectedChat._id,
         content: newMessage.trim(),
       })
-      setMessages([...messages, response.data])
+      setMessages([...messages, response])
       setNewMessage('')
       await fetchConversations()
     } catch (error) {
@@ -113,36 +113,37 @@ export default function Dashboard() {
   }
 
   const filteredUsers = searchQuery
-    ? users.filter(u => 
-        u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.email.toLowerCase().includes(searchQuery.toLowerCase())
+    ? users.filter(
+        (u) =>
+          u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          u.email.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     : users
 
   const getDisplayUsers = () => {
-    if (conversations.length > 0) {
-      return conversations.map(conv => conv.user)
+    if (conversations && conversations.length > 0) {
+      return conversations.map((conv) => conv.user).filter(Boolean) // also filter out any null/undefined users
     }
-    return filteredUsers
+    return filteredUsers || []
   }
 
   const renderMainContent = () => {
-    switch(activeView) {
+    switch (activeView) {
       case 'chats':
         return (
           <div className="chat-container">
-            <ChatList 
-              users={getDisplayUsers()} 
-              selectedChat={selectedChat} 
-              onSelectChat={handleUserSelect} 
-              searchQuery={searchQuery} 
+            <ChatList
+              users={getDisplayUsers()}
+              selectedChat={selectedChat}
+              onSelectChat={handleUserSelect}
+              searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
               loading={loading}
             />
-            <ChatWindow 
-              selectedChat={selectedChat} 
-              currentUser={user} 
-              messages={messages} 
+            <ChatWindow
+              selectedChat={selectedChat}
+              currentUser={user}
+              messages={messages}
               newMessage={newMessage}
               setNewMessage={setNewMessage}
               sending={sending}
@@ -172,7 +173,7 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard">
-      <Sidebar 
+      <Sidebar
         activeView={activeView}
         setActiveView={setActiveView}
         currentUser={user}
@@ -180,9 +181,7 @@ export default function Dashboard() {
         setIsMobileOpen={() => {}}
         logout={logout}
       />
-      <main className="main-content">
-        {renderMainContent()}
-      </main>
+      <main className="main-content">{renderMainContent()}</main>
     </div>
   )
 }

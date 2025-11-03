@@ -1,11 +1,17 @@
 'use client'
 
 import { MessageSquare, Search, User, Settings, LogOut } from 'lucide-react'
+import { useAuth } from '../../context/AuthContext'
 import './sidebar.css'
 
-export default function Sidebar({ activeView, setActiveView, currentUser, isMobileOpen, setIsMobileOpen }) {
-  
-  
+export default function Sidebar({
+  activeView,
+  setActiveView,
+  isMobileOpen,
+  setIsMobileOpen,
+}) {
+  const { user, logout } = useAuth()
+
   const navItems = [
     { id: 'chats', label: 'Chats', icon: MessageSquare },
     { id: 'search', label: 'Search Users', icon: Search },
@@ -21,14 +27,14 @@ export default function Sidebar({ activeView, setActiveView, currentUser, isMobi
   }
 
   const handleLogout = () => {
-    // Logout logic will be implemented later
-    console.log('Logging out...')
+    logout()
   }
 
   const getUserInitials = (name) => {
+    if (!name) return ''
     return name
       .split(' ')
-      .map(word => word[0])
+      .map((word) => word[0])
       .join('')
       .toUpperCase()
       .slice(0, 2)
@@ -37,8 +43,8 @@ export default function Sidebar({ activeView, setActiveView, currentUser, isMobi
   return (
     <>
       {isMobileOpen && (
-        <div 
-          className="mobile-overlay active" 
+        <div
+          className="mobile-overlay active"
           onClick={() => setIsMobileOpen(false)}
         />
       )}
@@ -48,7 +54,7 @@ export default function Sidebar({ activeView, setActiveView, currentUser, isMobi
         </div>
 
         <nav className="sidebar-nav">
-          {navItems.map(item => {
+          {navItems.map((item) => {
             const Icon = item.icon
             return (
               <button
@@ -64,20 +70,25 @@ export default function Sidebar({ activeView, setActiveView, currentUser, isMobi
         </nav>
 
         <div className="sidebar-footer">
-          <div className="user-profile-mini" onClick={() => handleNavClick('profile')}>
-            <div className="user-avatar">
-              {currentUser.avatar ? (
-                <img src={currentUser.avatar} alt={currentUser.name} />
-              ) : (
-                getUserInitials(currentUser.name)
-              )}
+          {user && (
+            <div
+              className="user-profile-mini"
+              onClick={() => handleNavClick('profile')}
+            >
+              <div className="user-avatar">
+                {user.avatar ? (
+                  <img src={user.avatar} alt={user.name} />
+                ) : (
+                  getUserInitials(user.name)
+                )}
+              </div>
+              <div className="user-info">
+                <h4>{user.name}</h4>
+                <p>@{user.username}</p>
+              </div>
             </div>
-            <div className="user-info">
-              <h4>{currentUser.name}</h4>
-              <p>@{currentUser.username}</p>
-            </div>
-          </div>
-          
+          )}
+
           <button className="logout-btn" onClick={handleLogout}>
             <LogOut size={18} />
             <span>Logout</span>
