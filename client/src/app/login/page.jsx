@@ -8,6 +8,7 @@ import { useAuth } from '../../context/AuthContext'
 import axios from 'axios'
 import './login.css'
 
+
 export default function Login() {
   const { login } = useAuth()
   const searchParams = useSearchParams()
@@ -67,9 +68,9 @@ export default function Login() {
     }
   }
 
-  const handleOAuthLogin = (provider) => {
+  const handleOAuthLogin = () => {
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
-    window.location.href = `${API_URL}/auth/${provider}`
+    window.location.href = `${API_URL}/auth/google`
   }
 
   const handleChange = (e) => {
@@ -223,11 +224,11 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="divider">Or continue with</div>
+        <div className="divider">Or</div>
 
         <div className="socials">
-          <button onClick={() => handleOAuthLogin('google')}>Google</button>
-          <button onClick={() => handleOAuthLogin('github')}>GitHub</button>
+          <button onClick={handleOAuthLogin}
+          > Sign in with Google</button>
         </div>
 
         <div className="footer">

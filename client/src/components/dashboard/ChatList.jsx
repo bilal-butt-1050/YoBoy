@@ -1,69 +1,53 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Search, MoreVertical } from 'lucide-react'
+import { usersAPI, messagesAPI } from '../../lib/api'
 import './chatList.css'
 
 export default function ChatList({ onSelectChat, selectedChat }) {
   const [searchQuery, setSearchQuery] = useState('')
+  const [users, setUsers] = useState([])
+  const [conversations, setConversations] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  // Mock chat data - will be replaced with actual data from backend
-  const chats = [
-    {
-      id: '1',
-      name: 'Alice Johnson',
-      username: 'alice_j',
-      lastMessage: 'Hey! How are you doing?',
-      timestamp: '2m ago',
-      unread: 2,
-      online: true,
-      avatar: null
-    },
-    {
-      id: '2',
-      name: 'Bob Smith',
-      username: 'bobsmith',
-      lastMessage: 'Did you see the latest update?',
-      timestamp: '1h ago',
-      unread: 0,
-      online: false,
-      avatar: null
-    },
-    {
-      id: '3',
-      name: 'Carol White',
-      username: 'carolw',
-      lastMessage: 'Thanks for your help!',
-      timestamp: '3h ago',
-      unread: 1,
-      online: true,
-      avatar: null
-    },
-    {
-      id: '4',
-      name: 'David Brown',
-      username: 'davidb',
-      lastMessage: 'See you tomorrow 👋',
-      timestamp: '1d ago',
-      unread: 0,
-      online: false,
-      avatar: null
-    },
-  ]
+  useEffect(() => {
+    fetchUsers()
+    fetchConversations()
+  }, [])
 
-  const filteredChats = chats.filter(chat =>
-    chat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    chat.username.toLowerCase().includes(searchQuery.toLowerCase())
-  )
-
-  const getUserInitials = (name) => {
-    return name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2)
+  const fetchUsers = async () => {
+    try {
+      const res = await usersAPI.getUsers()
+      setUsers(res.data || [])
+    } catch (err) {
+      console.error('Error fetching users:', err)
+    }
   }
+
+  const fetchConversations = async () => {
+    try {
+      const res = await messagesAPI.getConversations()
+      setConversations(res.data || [])
+      setLoading(false)
+    } catch (err) {
+      console.error('Error fetching conversations:', err)
+      setLoading(false)
+    }
+  }
+
+  const filteredUsers = searchQuery
+    ? users.filter(u =>
+        u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.email.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : users
+
+  const displayChats = conversations.length > 0 ? conversations.map(c => c.user) : filteredUsers
+
+  const getUserInitials = (name) => name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+
+  if (loading) return <p className="p-4 text-gray-400">Loading chats...</p>
 
   return (
     <div className="chat-list-container">
@@ -86,38 +70,30 @@ export default function ChatList({ onSelectChat, selectedChat }) {
       </div>
 
       <div className="chat-list">
-        {filteredChats.length === 0 ? (
+        {displayChats.length === 0 ? (
           <div className="empty-state">
             <p>No conversations found</p>
           </div>
         ) : (
-          filteredChats.map(chat => (
+          displayChats.map(user => (
             <div
-              key={chat.id}
-              className={`chat-item ${selectedChat?.id === chat.id ? 'active' : ''}`}
-              onClick={() => onSelectChat(chat)}
+              key={user.id || user._id}
+              className={`chat-item ${selectedChat?.id === (user.id || user._id) ? 'active' : ''}`}
+              onClick={() => onSelectChat(user)}
             >
               <div className="chat-avatar-container">
                 <div className="chat-avatar">
-                  {chat.avatar ? (
-                    <img src={chat.avatar} alt={chat.name} />
-                  ) : (
-                    getUserInitials(chat.name)
-                  )}
+                  {user.avatar ? <img src={user.avatar} alt={user.name} /> : getUserInitials(user.name)}
                 </div>
-                {chat.online && <div className="online-indicator" />}
+                {user.status === 'online' && <div className="online-indicator" />}
               </div>
-
               <div className="chat-info">
                 <div className="chat-header">
-                  <h4>{chat.name}</h4>
-                  <span className="timestamp">{chat.timestamp}</span>
+                  <h4>{user.name}</h4>
+                  {/* Optionally add last message timestamp */}
                 </div>
                 <div className="chat-preview">
-                  <p>{chat.lastMessage}</p>
-                  {chat.unread > 0 && (
-                    <span className="unread-badge">{chat.unread}</span>
-                  )}
+                  <p>{user.lastMessage || ''}</p>
                 </div>
               </div>
             </div>

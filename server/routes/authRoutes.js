@@ -43,11 +43,14 @@ router.put('/resetpassword/:resettoken', resetPassword);
 // ============================================
 // Google OAuth Routes
 // ============================================
+// Force Google to ask for consent / account selection every time
 router.get(
   '/google',
   passport.authenticate('google', { 
     scope: ['profile', 'email'],
-    session: false 
+    session: false,
+    prompt: 'consent',        // ← forces re-consent every login
+    accessType: 'offline'     // optional, for refresh tokens if needed
   })
 );
 
@@ -60,25 +63,6 @@ router.get(
   oauthSuccess
 );
 
-// ============================================
-// GitHub OAuth Routes
-// ============================================
-router.get(
-  '/github',
-  passport.authenticate('github', { 
-    scope: ['user:email'],
-    session: false 
-  })
-);
-
-router.get(
-  '/github/callback',
-  passport.authenticate('github', { 
-    failureRedirect: '/api/auth/oauth/failure',
-    session: false 
-  }),
-  oauthSuccess
-);
 
 // ============================================
 // OAuth Helper Routes

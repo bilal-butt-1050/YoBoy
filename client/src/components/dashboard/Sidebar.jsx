@@ -5,6 +5,7 @@ import './sidebar.css'
 
 export default function Sidebar({ activeView, setActiveView, currentUser, isMobileOpen, setIsMobileOpen }) {
   
+  
   const navItems = [
     { id: 'chats', label: 'Chats', icon: MessageSquare },
     { id: 'search', label: 'Search Users', icon: Search },

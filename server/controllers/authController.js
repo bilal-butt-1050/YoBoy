@@ -263,7 +263,7 @@ export const login = async (req, res, next) => {
   }
 };
 
-// @desc    OAuth Success - Called by passport after successful OAuth
+// OAuth Success - Called by passport after successful OAuth
 // @route   GET /api/auth/oauth/success
 // @access  Private (used by passport)
 export const oauthSuccess = (req, res) => {
@@ -277,12 +277,33 @@ export const oauthSuccess = (req, res) => {
     req.user.status = 'online';
     req.user.save();
 
-    sendTokenResponse(req.user, 200, res, 'OAuth login successful');
+    // Generate JWT token (same logic as sendTokenResponse)
+    const token = jwt.sign({ id: req.user._id }, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRE || '30d',
+    });
+
+    // Cookie options (mirror sendTokenResponse behavior)
+    const cookieOptions = {
+      expires: new Date(
+        Date.now() + (process.env.JWT_COOKIE_EXPIRE || 30) * 24 * 60 * 60 * 1000
+      ),
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // true in prod (HTTPS)
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    };
+
+    // Set cookie on backend domain
+    res.cookie('token', token, cookieOptions);
+
+    // Redirect to frontend app. Frontend will call /api/auth/me (AuthProvider) to fetch user
+    // or you can include a query param like ?oauth=success if you want.
+    return res.redirect(`${process.env.CLIENT_URL}/dashboard`);
   } catch (error) {
     console.error('OAuth success error:', error);
-    res.redirect(`${process.env.CLIENT_URL}/login?error=oauth_failed`);
+    return res.redirect(`${process.env.CLIENT_URL}/login?error=oauth_failed`);
   }
 };
+
 
 // @desc    OAuth Failure
 // @route   GET /api/auth/oauth/failure
