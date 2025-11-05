@@ -4,183 +4,299 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { io } from 'socket.io-client'
 import { messagesAPI } from '@/lib/api'
 
+// ============================================
+// HELPER: Get token from cookies
+// ============================================
 function getTokenFromCookie() {
   if (typeof document === 'undefined') return null
-  const match = document.cookie.match(new RegExp('(^| )token=([^;]+)'))
-  return match ? match[2] : null
+  
+  const cookies = document.cookie.split('; ')
+  const tokenCookie = cookies.find(row => row.startsWith('token='))
+  
+  return tokenCookie ? tokenCookie.split('=')[1] : null
 }
 
 export default function useChat(currentUser) {
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [conversations, setConversations] = useState([])
   const [messages, setMessages] = useState([])
   const [onlineUsers, setOnlineUsers] = useState(new Set())
   const [isTyping, setIsTyping] = useState(false)
+  const [socketConnected, setSocketConnected] = useState(false)
 
   const socketRef = useRef(null)
   const currentChatRef = useRef(null)
+  const reconnectAttempts = useRef(0)
 
-  // ---------------- SOCKET SETUP ----------------
+  // ============================================
+  // SOCKET INITIALIZATION
+  // ============================================
   useEffect(() => {
-    const token = getTokenFromCookie()
-    if (!token || !currentUser?._id) return
+    // Don't initialize if no user
+    if (!currentUser?._id) {
+      console.log('⏳ Waiting for user authentication...')
+      return
+    }
 
-    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL, {
+    const token = getTokenFromCookie()
+    
+    if (!token) {
+      console.error('❌ No auth token found')
+      return
+    }
+
+    console.log('🔌 Initializing socket connection...')
+
+    // Create socket instance
+    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000', {
       auth: { token },
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5,
+      timeout: 20000
     })
 
     socketRef.current = socket
 
+    // ============================================
+    // CONNECTION EVENTS
+    // ============================================
     socket.on('connect', () => {
-      console.log('socket connected ✅')
+      console.log('✅ Socket connected:', socket.id)
+      setSocketConnected(true)
+      reconnectAttempts.current = 0
     })
 
-    socket.on('users:online', (list) => setOnlineUsers(new Set(list)))
+    socket.on('connect_error', (error) => {
+      console.error('❌ Connection error:', error.message)
+      setSocketConnected(false)
+      reconnectAttempts.current++
+      
+      if (reconnectAttempts.current > 5) {
+        console.error('❌ Max reconnection attempts reached')
+      }
+    })
 
-    socket.on('user:online', ({ userId }) =>
-      setOnlineUsers((prev) => new Set([...prev, userId]))
-    )
+    socket.on('disconnect', (reason) => {
+      console.log('🔴 Socket disconnected:', reason)
+      setSocketConnected(false)
+      
+      if (reason === 'io server disconnect') {
+        // Server forced disconnect - reconnect manually
+        socket.connect()
+      }
+    })
 
-    socket.on('user:offline', ({ userId }) =>
-      setOnlineUsers((prev) => {
+    // ============================================
+    // ONLINE USERS TRACKING
+    // ============================================
+    socket.on('users:online', (userIds) => {
+      console.log('👥 Online users updated:', userIds.length)
+      setOnlineUsers(new Set(userIds))
+    })
+
+    socket.on('user:online', ({ userId }) => {
+      console.log('🟢 User came online:', userId)
+      setOnlineUsers(prev => new Set([...prev, userId]))
+    })
+
+    socket.on('user:offline', ({ userId }) => {
+      console.log('🔴 User went offline:', userId)
+      setOnlineUsers(prev => {
         const newSet = new Set(prev)
         newSet.delete(userId)
         return newSet
       })
-    )
+    })
 
-    // receive message for both sender + receiver
-    socket.on('message:receive', (msg) => {
+    // ============================================
+    // MESSAGE EVENTS
+    // ============================================
+    socket.on('message:receive', (message) => {
+      console.log('📩 Message received:', message._id)
+      
       const currentChat = currentChatRef.current
       if (!currentChat) return
 
       const activeChatId = currentChat.id?.toString()
-      if (
-        msg.sender._id === activeChatId ||
-        msg.receiver._id === activeChatId ||
-        msg.sender._id === currentUser._id
-      ) {
-        setMessages((prev) => [...prev, msg])
+      const senderId = message.sender?._id?.toString() || message.sender?.toString()
+      const receiverId = message.receiver?._id?.toString() || message.receiver?.toString()
+
+      // Only add message if it's for the active chat
+      if (senderId === activeChatId || receiverId === activeChatId || senderId === currentUser._id) {
+        setMessages(prev => {
+          // Prevent duplicates
+          const exists = prev.some(m => m._id === message._id)
+          return exists ? prev : [...prev, message]
+        })
       }
 
-      // update conversation preview
-      setConversations((prev) => {
-        const copy = [...prev]
-        const idx = copy.findIndex(
-          (c) =>
-            (c.user?._id || c.user) ===
-            (msg.sender._id === currentUser._id
-              ? msg.receiver._id
-              : msg.sender._id)
-        )
-
-        if (idx > -1) copy[idx].lastMessage = msg
-        else
-          copy.unshift({
-            user:
-              msg.sender._id === currentUser._id
-                ? msg.receiver
-                : msg.sender,
-            lastMessage: msg,
-          })
-        return copy
-      })
+      // Update conversation preview
+      updateConversationPreview(message)
     })
 
-    // acknowledgement of sent message
-    socket.on('message:sent', (msg) => {
-      setMessages((prev) => {
-        const exists = prev.some((m) => m._id === msg._id)
-        return exists ? prev : [...prev, msg]
-      })
+    socket.on('message:sent', (message) => {
+      console.log('✅ Message sent confirmation:', message._id)
+      // Message already added optimistically or via message:receive
     })
 
-    socket.on('typing:start', () => setIsTyping(true))
-    socket.on('typing:stop', () => setIsTyping(false))
+    // ============================================
+    // TYPING INDICATORS
+    // ============================================
+    socket.on('typing:start', () => {
+      setIsTyping(true)
+      // Auto-clear after 3 seconds
+      setTimeout(() => setIsTyping(false), 3000)
+    })
 
+    socket.on('typing:stop', () => {
+      setIsTyping(false)
+    })
+
+    // ============================================
+    // ERROR HANDLER
+    // ============================================
+    socket.on('error', (error) => {
+      console.error('❌ Socket error:', error)
+    })
+
+    // ============================================
+    // CLEANUP
+    // ============================================
     return () => {
+      console.log('🧹 Cleaning up socket connection')
       socket.disconnect()
       socketRef.current = null
     }
   }, [currentUser])
 
-  // ---------------- FETCHERS ----------------
+  // ============================================
+  // UPDATE CONVERSATION PREVIEW
+  // ============================================
+  const updateConversationPreview = useCallback((message) => {
+    setConversations(prev => {
+      const copy = [...prev]
+      const senderId = message.sender?._id?.toString() || message.sender?.toString()
+      const receiverId = message.receiver?._id?.toString() || message.receiver?.toString()
+      
+      const otherUserId = senderId === currentUser._id ? receiverId : senderId
+      const idx = copy.findIndex(c => 
+        (c.user?._id?.toString() || c.user?.toString()) === otherUserId
+      )
+
+      if (idx > -1) {
+        copy[idx].lastMessage = message
+      } else {
+        // New conversation
+        copy.unshift({
+          user: senderId === currentUser._id ? message.receiver : message.sender,
+          lastMessage: message
+        })
+      }
+      
+      return copy
+    })
+  }, [currentUser])
+
+  // ============================================
+  // FETCH CONVERSATIONS
+  // ============================================
   const fetchConversations = useCallback(async () => {
     try {
       setLoading(true)
       const data = await messagesAPI.getConversations()
       setConversations(data || [])
     } catch (err) {
-      console.error('fetchConversations error:', err)
+      console.error('❌ Failed to fetch conversations:', err)
     } finally {
       setLoading(false)
     }
   }, [])
 
+  // ============================================
+  // FETCH MESSAGES FOR A CONVERSATION
+  // ============================================
   const fetchMessages = useCallback(async (receiverId) => {
     try {
       setLoading(true)
-      const data = await messagesAPI.getMessages(receiverId)
-      setMessages(data || [])
+      const response = await messagesAPI.getMessages(receiverId)
+      setMessages(response.messages || [])
     } catch (err) {
-      console.error('fetchMessages error:', err)
+      console.error('❌ Failed to fetch messages:', err)
+      setMessages([])
     } finally {
       setLoading(false)
     }
   }, [])
 
-  // ---------------- ACTIONS ----------------
-  const joinConversation = useCallback(
-    (userId) => {
-      if (!socketRef.current || !userId) return
-      currentChatRef.current = { id: userId.toString() }
-      socketRef.current.emit('conversation:join', userId.toString())
-      fetchMessages(userId)
-    },
-    [fetchMessages]
-  )
+  // ============================================
+  // JOIN CONVERSATION
+  // ============================================
+  const joinConversation = useCallback((userId) => {
+    if (!socketRef.current || !userId) return
+    
+    const userIdStr = userId.toString()
+    currentChatRef.current = { id: userIdStr }
+    
+    console.log('📥 Joining conversation with:', userIdStr)
+    socketRef.current.emit('conversation:join', userIdStr)
+    fetchMessages(userIdStr)
+  }, [fetchMessages])
 
-  const sendMessage = useCallback(
-    async ({ receiverId, content, messageType = 'text' }) => {
-      if (!socketRef.current || !receiverId || !content?.trim()) return
-      const socket = socketRef.current
+  // ============================================
+  // SEND MESSAGE
+  // ============================================
+  const sendMessage = useCallback(async ({ receiverId, content, messageType = 'text' }) => {
+    if (!socketRef.current || !receiverId || !content?.trim()) {
+      console.warn('⚠️ Cannot send message: missing data or socket not connected')
+      return
+    }
 
-      try {
-        const msg = await messagesAPI.sendMessage({
-          receiverId,
-          content,
-          messageType,
-        })
+    const socket = socketRef.current
 
-        // Emit through socket after successful DB save
-        socket.emit('message:send', msg)
-        setMessages((prev) => [...prev, msg])
+    try {
+      // Save to database first
+      const message = await messagesAPI.sendMessage({
+        receiverId,
+        content: content.trim(),
+        messageType
+      })
 
-        // update conversation preview instantly
-        setConversations((prev) => {
-          const copy = [...prev]
-          const idx = copy.findIndex(
-            (c) => (c.user?._id || c.user) === receiverId
-          )
-          if (idx > -1) copy[idx].lastMessage = msg
-          else copy.unshift({ user: { _id: receiverId }, lastMessage: msg })
-          return copy
-        })
-      } catch (err) {
-        console.error('sendMessage error:', err)
-      }
-    },
-    []
-  )
+      console.log('📤 Sending message via socket:', message._id)
 
+      // Emit via socket
+      socket.emit('message:send', {
+        receiverId,
+        content: content.trim(),
+        messageType
+      })
+
+      // Optimistically add to UI
+      setMessages(prev => {
+        const exists = prev.some(m => m._id === message._id)
+        return exists ? prev : [...prev, message]
+      })
+
+      // Update conversation preview
+      updateConversationPreview(message)
+
+    } catch (err) {
+      console.error('❌ Failed to send message:', err)
+    }
+  }, [updateConversationPreview])
+
+  // ============================================
+  // TYPING INDICATORS
+  // ============================================
   const startTyping = useCallback((receiverId) => {
-    if (!socketRef.current) return
+    if (!socketRef.current || !receiverId) return
     socketRef.current.emit('typing:start', receiverId)
   }, [])
 
   const stopTyping = useCallback((receiverId) => {
-    if (!socketRef.current) return
+    if (!socketRef.current || !receiverId) return
     socketRef.current.emit('typing:stop', receiverId)
   }, [])
 
@@ -190,12 +306,12 @@ export default function useChat(currentUser) {
     messages,
     onlineUsers,
     isTyping,
-    socketConnected: !!socketRef.current,
+    socketConnected,
     fetchConversations,
     fetchMessages,
     joinConversation,
     sendMessage,
     startTyping,
-    stopTyping,
+    stopTyping
   }
 }
