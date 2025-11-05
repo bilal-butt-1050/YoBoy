@@ -1,100 +1,162 @@
-import Message from '../models/Message.js';
+import Message from '../models/Message.js'
+import User from '../models/User.js'
 
-// SEND MESSAGE
-export const sendMessage = async (req, res, next) => {
+// helper to create deterministic conversationId
+const getConversationId = (id1, id2) => {
+  return [id1.toString(), id2.toString()].sort().join('-')
+}
+
+// POST /api/messages
+export const sendMessage = async (req, res) => {
   try {
-    const { receiver, content, messageType } = req.body;
-    if (!receiver || (messageType === 'text' && !content?.trim()))
-      return res.status(400).json({ success: false, message: 'Receiver and message content are required' });
+    const { receiverId, content, messageType, mediaUrl } = req.body
+    const senderId = req.user._id
 
-    const message = await Message.create({ sender: req.user._id, receiver, content, messageType });
-    res.status(201).json({ success: true, message });
-  } catch (error) {
-    next(error);
+    if (!receiverId || (!content && !mediaUrl)) {
+      return res.status(400).json({ message: 'Message content required' })
+    }
+
+    const conversationId = getConversationId(senderId, receiverId)
+
+    const message = await Message.create({
+      sender: senderId,
+      receiver: receiverId,
+      content,
+      messageType,
+      mediaUrl,
+      conversationId,
+    })
+
+    // Emit via Socket.IO if you use it
+    if (req.io) {
+      req.io.to(conversationId).emit('newMessage', message)
+    }
+
+    res.status(201).json(message)
+  } catch (err) {
+    console.error('sendMessage error:', err)
+    res.status(500).json({ message: 'Failed to send message' })
   }
-};
+}
 
-// GET CONVERSATIONS (distinct users)
-export const getConversations = async (req, res, next) => {
+// GET /api/messages/:userId
+export const getMessages = async (req, res) => {
   try {
+    const { userId } = req.params
+    const currentUserId = req.user._id
+    const conversationId = getConversationId(currentUserId, userId)
+
+    const messages = await Message.find({
+      conversationId,
+      isDeleted: false,
+    })
+      .sort({ createdAt: 1 })
+      .populate('sender receiver', 'name username email profilePic')
+
+    // handle empty conversation
+    if (!messages.length) {
+      const otherUser = await User.findById(userId).select(
+        'name username email profilePic'
+      )
+      return res.status(200).json({
+        conversationId,
+        messages: [],
+        otherUser,
+        newConversation: true,
+      })
+    }
+
+    res.status(200).json({
+      conversationId,
+      messages,
+      newConversation: false,
+    })
+  } catch (err) {
+    console.error('getMessages error:', err)
+    res.status(500).json({ message: 'Failed to load messages' })
+  }
+}
+
+// GET /api/messages
+export const getConversations = async (req, res) => {
+  try {
+    const userId = req.user._id
+
     const conversations = await Message.aggregate([
-      { $match: { $or: [{ sender: req.user._id }, { receiver: req.user._id }], isDeleted: false } },
       {
-        $group: {
-          _id: { $cond: [{ $eq: ['$sender', req.user._id] }, '$receiver', '$sender'] },
-          lastMessage: { $last: '$$ROOT' },
-          unreadCount: { $sum: { $cond: [{ $and: [{ $eq: ['$receiver', req.user._id] }, { $eq: ['$isRead', false] }] }, 1, 0] } },
+        $match: {
+          $or: [{ sender: userId }, { receiver: userId }],
+          isDeleted: false,
         },
       },
-      { $sort: { 'lastMessage.createdAt': -1 } },
-    ]);
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: '$conversationId',
+          lastMessage: { $first: '$$ROOT' },
+        },
+      },
+    ])
 
-    res.status(200).json({ success: true, conversations });
-  } catch (error) {
-    next(error);
+    if (!conversations.length) {
+      return res.status(200).json([]) // return empty array safely
+    }
+
+    const populated = await Promise.all(
+      conversations.map(async (conv) => {
+        const { sender, receiver, lastMessage } = conv.lastMessage
+        const otherUserId =
+          sender.toString() === userId.toString() ? receiver : sender
+        const user = await User.findById(otherUserId).select(
+          'name username email profilePic'
+        )
+        return { user, lastMessage }
+      })
+    )
+
+    res.status(200).json(populated)
+  } catch (err) {
+    console.error('getConversations error:', err)
+    res.status(500).json({ message: 'Failed to load conversations' })
   }
-};
+}
 
-// GET MESSAGES BETWEEN USERS
-export const getMessages = async (req, res, next) => {
+// PATCH /api/messages/:id/read
+export const markAsRead = async (req, res) => {
   try {
-    const messages = await Message.find({
-      $or: [
-        { sender: req.user._id, receiver: req.params.userId },
-        { sender: req.params.userId, receiver: req.user._id },
-      ],
-      isDeleted: false,
-    }).sort({ createdAt: 1 });
+    const { id } = req.params
 
-    res.status(200).json({ success: true, messages });
-  } catch (error) {
-    next(error);
+    const message = await Message.findByIdAndUpdate(
+      id,
+      { isRead: true, readAt: new Date() },
+      { new: true }
+    )
+
+    if (!message) return res.status(404).json({ message: 'Message not found' })
+
+    res.status(200).json(message)
+  } catch (err) {
+    console.error('markAsRead error:', err)
+    res.status(500).json({ message: 'Failed to mark message as read' })
   }
-};
+}
 
-// MARK MESSAGE AS READ
-export const markAsRead = async (req, res, next) => {
+// DELETE /api/messages/:id
+export const deleteMessage = async (req, res) => {
   try {
-    const message = await Message.findById(req.params.id);
-    if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
+    const { id } = req.params
 
-    if (message.receiver.toString() !== req.user._id.toString())
-      return res.status(403).json({ success: false, message: 'Not authorized' });
+    const message = await Message.findByIdAndUpdate(
+      id,
+      { isDeleted: true, deletedAt: new Date() },
+      { new: true }
+    )
 
-    message.isRead = true;
-    message.readAt = Date.now();
-    await message.save();
+    if (!message) return res.status(404).json({ message: 'Message not found' })
 
-    res.status(200).json({ success: true, message });
-  } catch (error) {
-    next(error);
+    res.status(200).json({ message: 'Message deleted successfully' })
+  } catch (err) {
+    console.error('deleteMessage error:', err)
+    res.status(500).json({ message: 'Failed to delete message' })
   }
-};
-
-// DELETE MESSAGE
-export const deleteMessage = async (req, res, next) => {
-  try {
-    const message = await Message.findById(req.params.id);
-    if (!message) return res.status(404).json({ success: false, message: 'Message not found' });
-
-    if (message.sender.toString() !== req.user._id.toString() && message.receiver.toString() !== req.user._id.toString())
-      return res.status(403).json({ success: false, message: 'Not authorized' });
-
-    message.isDeleted = true;
-    await message.save();
-
-    res.status(200).json({ success: true, message: 'Message deleted successfully' });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// GET UNREAD COUNT
-export const getUnreadCount = async (req, res, next) => {
-  try {
-    const count = await Message.countDocuments({ receiver: req.user._id, isRead: false, isDeleted: false });
-    res.status(200).json({ success: true, count });
-  } catch (error) {
-    next(error);
-  }
-};
+}

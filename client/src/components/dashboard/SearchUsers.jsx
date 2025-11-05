@@ -1,29 +1,32 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Search, UserPlus, MessageCircle } from 'lucide-react'
 import { usersAPI } from '../../lib/api'
 import './searchUsers.css'
 
-export default function SearchUsers({ currentUser }) {
+export default function SearchUsers({ currentUser, onSelectUser }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
 
-  const handleSearch = async (e) => {
-    e.preventDefault()
-    if (!query.trim()) return
-    setLoading(true)
-    try {
-      const res = await usersAPI.searchUsers(query.trim())
-      setResults(res)
-    } catch (err) {
-      console.error(err)
-      setResults([])
-    } finally {
-      setLoading(false)
-    }
-  }
+  useEffect(() => {
+    const delay = setTimeout(async () => {
+      if (!query.trim()) return setResults([])
+      setLoading(true)
+      try {
+        const res = await usersAPI.searchUsers(query.trim())
+        setResults(res.users || [])
+      } catch (err) {
+        console.error(err)
+        setResults([])
+      } finally {
+        setLoading(false)
+      }
+    }, 500)
+
+    return () => clearTimeout(delay)
+  }, [query])
 
   const getUserInitials = (name) =>
     name?.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
@@ -35,7 +38,7 @@ export default function SearchUsers({ currentUser }) {
         <p>Find and connect with people on ChatFlow</p>
       </div>
 
-      <form className="search-form" onSubmit={handleSearch}>
+      <form className="search-form" onSubmit={(e) => e.preventDefault()}>
         <div className="search-input-wrapper">
           <Search size={20} className="search-icon-large" />
           <input
@@ -46,9 +49,6 @@ export default function SearchUsers({ currentUser }) {
             className="search-input-large"
           />
         </div>
-        <button type="submit" className="search-submit-btn" disabled={!query.trim()}>
-          Search
-        </button>
       </form>
 
       <div className="search-results">
@@ -60,7 +60,7 @@ export default function SearchUsers({ currentUser }) {
         ) : results.length ? (
           <div className="users-grid">
             {results.map((user) => (
-              <div key={user.id} className="user-card">
+              <div key={user._id || user.id} className="user-card">
                 <div className="user-card-header">
                   <div className="user-card-avatar-container">
                     <div className="user-card-avatar">{getUserInitials(user.name)}</div>
@@ -73,11 +73,17 @@ export default function SearchUsers({ currentUser }) {
                   </div>
                 </div>
                 <div className="user-card-actions">
-                  <button className="user-action-btn primary" onClick={() => console.log('Chat', user.username)}>
+                  <button
+                    className="user-action-btn primary"
+                    onClick={() => onSelectUser?.(user)} // <-- key change
+                  >
                     <MessageCircle size={18} />
                     Message
                   </button>
-                  <button className="user-action-btn secondary" onClick={() => console.log('Add friend', user.username)}>
+                  <button
+                    className="user-action-btn secondary"
+                    onClick={() => console.log('Add friend', user.username)}
+                  >
                     <UserPlus size={18} />
                     Add Friend
                   </button>

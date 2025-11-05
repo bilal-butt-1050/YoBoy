@@ -21,24 +21,28 @@ export const getUserById = async (req, res, next) => {
   }
 };
 
-// SEARCH USERS BY NAME OR USERNAME
-export const searchUsers = async (req, res, next) => {
+export const searchUsers = async (req, res) => {
   try {
-    const { q } = req.query;
-    if (!q) return res.status(400).json({ success: false, message: 'Query parameter is required' });
+    const { q } = req.query
+    if (!q || !q.trim()) {
+      return res.status(400).json({ message: 'Query is required' })
+    }
 
+    // Match only names or usernames that START with the search term
     const users = await User.find({
       $or: [
-        { name: { $regex: q, $options: 'i' } },
-        { username: { $regex: q, $options: 'i' } },
+        { name: { $regex: `^${q}`, $options: 'i' } },
+        { username: { $regex: `^${q}`, $options: 'i' } },
       ],
-    }).select('-password -verificationToken -resetPasswordToken');
+    }).select('-password')
 
-    res.status(200).json({ success: true, users });
+    res.json({ users })
   } catch (error) {
-    next(error);
+    console.error(error)
+    res.status(500).json({ message: 'Server error' })
   }
-};
+}
+
 
 // UPDATE USER STATUS
 export const updateStatus = async (req, res, next) => {

@@ -21,6 +21,7 @@ export default function DashboardPage() {
   const [activeView, setActiveView] = useState('chats')
   const [selectedChat, setSelectedChat] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
+
   const messagesEndRef = useRef(null)
 
   const {
@@ -28,7 +29,7 @@ export default function DashboardPage() {
     messages,
     conversations,
     fetchConversations,
-    fetchUsers,
+    fetchMessages,
     joinConversation,
     sendMessage,
     markAsRead,
@@ -44,39 +45,54 @@ export default function DashboardPage() {
     if (!authLoading && !isAuthenticated) router.push('/login')
   }, [authLoading, isAuthenticated, router])
 
-  // fetch conversations on load
+  // fetch all user conversations on load
   useEffect(() => {
     if (user) fetchConversations()
   }, [user, fetchConversations])
 
-  // join conversation when selected
+  // join a chat room and load its messages
   useEffect(() => {
-    if (selectedChat) joinConversation(selectedChat._id || selectedChat.id)
-  }, [selectedChat, joinConversation])
+    if (selectedChat) {
+      const id = selectedChat._id || selectedChat.id
+      joinConversation(id)
+      fetchMessages(id)
+    }
+  }, [selectedChat, joinConversation, fetchMessages])
 
-  const handleUserSelect = (userObj) => {
-    setSelectedChat(userObj)
+  // handle selecting a user to chat with
+  const handleUserSelect = (chatUser) => {
+    setSelectedChat(chatUser)
     setActiveView('chats')
   }
 
+  // send message handler
   const handleSendMessage = async (content) => {
-    if (!selectedChat) return
-    await sendMessage({ receiverId: selectedChat._id || selectedChat.id, content })
-    fetchConversations()
+    if (!selectedChat || !content.trim()) return
+    await sendMessage({
+      receiverId: selectedChat._id || selectedChat.id,
+      content,
+    })
   }
 
   const handleMarkAsRead = (messageId) => markAsRead(messageId)
 
-  const filteredUsers = conversations
-    ?.map((conv) => ({ ...conv.user, lastMessage: conv.lastMessage }))
-    .filter(Boolean)
-    .filter(
-      (u) =>
-        !searchQuery ||
-        u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    ) || []
+  // filter users for chat list
+  const filteredUsers =
+    conversations
+      ?.map((conv) => ({
+        ...conv.user,
+        lastMessage: conv.lastMessage,
+      }))
+      .filter((u) => {
+        if (!u) return false
+        if (!searchQuery) return true
+        return (
+          u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          u.email?.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      }) || []
 
+  // main content renderer
   const renderMainContent = () => {
     switch (activeView) {
       case 'chats':
@@ -97,15 +113,22 @@ export default function DashboardPage() {
               messages={messages}
               onSendMessage={handleSendMessage}
               messagesEndRef={messagesEndRef}
-              startTyping={() => startTyping(selectedChat?._id || selectedChat?.id)}
-              stopTyping={() => stopTyping(selectedChat?._id || selectedChat?.id)}
+              startTyping={() =>
+                startTyping(selectedChat?._id || selectedChat?.id)
+              }
+              stopTyping={() =>
+                stopTyping(selectedChat?._id || selectedChat?.id)
+              }
               isTyping={isTyping}
               markAsRead={handleMarkAsRead}
+              socketConnected={socketConnected}
+              chatLoading={chatLoading}
             />
           </div>
         )
+
       case 'search':
-        return <SearchUsers currentUser={user} />
+        return <SearchUsers currentUser={user} onSelectUser={handleUserSelect} />
       case 'profile':
         return <Profile user={user} />
       case 'settings':

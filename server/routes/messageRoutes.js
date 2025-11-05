@@ -1,15 +1,31 @@
-import express from 'express';
-import { sendMessage, getMessages, getConversations, markAsRead, deleteMessage, getUnreadCount } from '../controllers/messageController.js';
-import { protect } from '../middleware/auth.js';
+import express from 'express'
+import {
+  sendMessage,
+  getMessages,
+  markAsRead,
+  deleteMessage,
+  getConversations,
+} from '../controllers/messageController.js'
+import { protect } from '../middleware/auth.js'
 
-const router = express.Router();
-router.use(protect);
+const router = express.Router()
 
-router.post('/', sendMessage);
-router.get('/conversations', getConversations);
-router.get('/unread/count', getUnreadCount);
-router.get('/:userId', getMessages);
-router.put('/:id/read', markAsRead);
-router.delete('/:id', deleteMessage);
+// all routes protected
+router.use(protect)
 
-export default router;
+// send a message
+router.post('/', sendMessage)
+
+// get messages for a conversation between two users
+router.get('/:userId', getMessages)
+
+// get list of recent conversations (for sidebar)
+router.get('/', getConversations)
+
+// mark a message as read
+router.patch('/:id/read', markAsRead)
+
+// delete a message (soft delete)
+router.delete('/:id', deleteMessage)
+
+export default router

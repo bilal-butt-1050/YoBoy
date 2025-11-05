@@ -37,17 +37,17 @@ export const usersAPI = {
   getUserById: (id) => api.get(`/users/${id}`),
   updateProfile: (data) => api.put('/users/profile', data),
   updateStatus: (data) => api.put('/users/status', data),
-  searchUsers: (query) => api.get(`/users/search?query=${query}`),
+  searchUsers: (query) => api.get(`/users/search?q=${query}`),
 }
 
 // Messages API
 export const messagesAPI = {
-  getConversations: () => api.get('/messages/conversations'),
+  getConversations: () => api.get('/messages'),
   getMessages: (userId) => api.get(`/messages/${userId}`),
   sendMessage: (data) => api.post('/messages', data),
-  markAsRead: (id) => api.put(`/messages/${id}/read`),
+  markAsRead: (id) => api.patch(`/messages/${id}/read`),
   deleteMessage: (id) => api.delete(`/messages/${id}`),
-  getUnreadCount: () => api.get('/messages/unread/count'),
 }
+
 
 export default api
