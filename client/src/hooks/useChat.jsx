@@ -1,122 +1,30 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { io } from 'socket.io-client'
 import { messagesAPI } from '@/lib/api'
-
-// ============================================
-// HELPER: Get token from cookies
-// ============================================
-function getTokenFromCookie() {
-  if (typeof document === 'undefined') return null
-  
-  const cookies = document.cookie.split('; ')
-  const tokenCookie = cookies.find(row => row.startsWith('token='))
-  
-  return tokenCookie ? tokenCookie.split('=')[1] : null
-}
+import { useSocket } from '@/context/SocketContext'
 
 export default function useChat(currentUser) {
+  const { socket, connected, onlineUsers, isUserOnline } = useSocket()
+
   const [loading, setLoading] = useState(false)
   const [conversations, setConversations] = useState([])
   const [messages, setMessages] = useState([])
-  const [onlineUsers, setOnlineUsers] = useState(new Set())
   const [isTyping, setIsTyping] = useState(false)
-  const [socketConnected, setSocketConnected] = useState(false)
 
-  const socketRef = useRef(null)
   const currentChatRef = useRef(null)
-  const reconnectAttempts = useRef(0)
 
   // ============================================
-  // SOCKET INITIALIZATION
+  // SOCKET EVENTS
   // ============================================
   useEffect(() => {
-    // Don't initialize if no user
-    if (!currentUser?._id) {
-      console.log('⏳ Waiting for user authentication...')
-      return
-    }
+    if (!socket || !connected) return
 
-    const token = getTokenFromCookie()
-    
-    if (!token) {
-      console.error('❌ No auth token found')
-      return
-    }
+    console.log('✅ Socket available in useChat')
 
-    console.log('🔌 Initializing socket connection...')
-
-    // Create socket instance
-    const socket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000', {
-      auth: { token },
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
-      timeout: 20000
-    })
-
-    socketRef.current = socket
-
-    // ============================================
-    // CONNECTION EVENTS
-    // ============================================
-    socket.on('connect', () => {
-      console.log('✅ Socket connected:', socket.id)
-      setSocketConnected(true)
-      reconnectAttempts.current = 0
-    })
-
-    socket.on('connect_error', (error) => {
-      console.error('❌ Connection error:', error.message)
-      setSocketConnected(false)
-      reconnectAttempts.current++
-      
-      if (reconnectAttempts.current > 5) {
-        console.error('❌ Max reconnection attempts reached')
-      }
-    })
-
-    socket.on('disconnect', (reason) => {
-      console.log('🔴 Socket disconnected:', reason)
-      setSocketConnected(false)
-      
-      if (reason === 'io server disconnect') {
-        // Server forced disconnect - reconnect manually
-        socket.connect()
-      }
-    })
-
-    // ============================================
-    // ONLINE USERS TRACKING
-    // ============================================
-    socket.on('users:online', (userIds) => {
-      console.log('👥 Online users updated:', userIds.length)
-      setOnlineUsers(new Set(userIds))
-    })
-
-    socket.on('user:online', ({ userId }) => {
-      console.log('🟢 User came online:', userId)
-      setOnlineUsers(prev => new Set([...prev, userId]))
-    })
-
-    socket.on('user:offline', ({ userId }) => {
-      console.log('🔴 User went offline:', userId)
-      setOnlineUsers(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(userId)
-        return newSet
-      })
-    })
-
-    // ============================================
-    // MESSAGE EVENTS
-    // ============================================
     socket.on('message:receive', (message) => {
       console.log('📩 Message received:', message._id)
-      
+
       const currentChat = currentChatRef.current
       if (!currentChat) return
 
@@ -124,81 +32,54 @@ export default function useChat(currentUser) {
       const senderId = message.sender?._id?.toString() || message.sender?.toString()
       const receiverId = message.receiver?._id?.toString() || message.receiver?.toString()
 
-      // Only add message if it's for the active chat
       if (senderId === activeChatId || receiverId === activeChatId || senderId === currentUser._id) {
-        setMessages(prev => {
-          // Prevent duplicates
-          const exists = prev.some(m => m._id === message._id)
+        setMessages((prev) => {
+          const exists = prev.some((m) => m._id === message._id)
           return exists ? prev : [...prev, message]
         })
       }
 
-      // Update conversation preview
       updateConversationPreview(message)
     })
 
-    socket.on('message:sent', (message) => {
-      console.log('✅ Message sent confirmation:', message._id)
-      // Message already added optimistically or via message:receive
-    })
+    socket.on('typing:start', () => setIsTyping(true))
+    socket.on('typing:stop', () => setIsTyping(false))
 
-    // ============================================
-    // TYPING INDICATORS
-    // ============================================
-    socket.on('typing:start', () => {
-      setIsTyping(true)
-      // Auto-clear after 3 seconds
-      setTimeout(() => setIsTyping(false), 3000)
-    })
-
-    socket.on('typing:stop', () => {
-      setIsTyping(false)
-    })
-
-    // ============================================
-    // ERROR HANDLER
-    // ============================================
-    socket.on('error', (error) => {
-      console.error('❌ Socket error:', error)
-    })
-
-    // ============================================
-    // CLEANUP
-    // ============================================
     return () => {
-      console.log('🧹 Cleaning up socket connection')
-      socket.disconnect()
-      socketRef.current = null
+      socket.off('message:receive')
+      socket.off('typing:start')
+      socket.off('typing:stop')
     }
-  }, [currentUser])
+  }, [socket, connected, currentUser])
 
   // ============================================
   // UPDATE CONVERSATION PREVIEW
   // ============================================
-  const updateConversationPreview = useCallback((message) => {
-    setConversations(prev => {
-      const copy = [...prev]
-      const senderId = message.sender?._id?.toString() || message.sender?.toString()
-      const receiverId = message.receiver?._id?.toString() || message.receiver?.toString()
-      
-      const otherUserId = senderId === currentUser._id ? receiverId : senderId
-      const idx = copy.findIndex(c => 
-        (c.user?._id?.toString() || c.user?.toString()) === otherUserId
-      )
+  const updateConversationPreview = useCallback(
+    (message) => {
+      setConversations((prev) => {
+        const copy = [...prev]
+        const senderId = message.sender?._id?.toString() || message.sender?.toString()
+        const receiverId = message.receiver?._id?.toString() || message.receiver?.toString()
+        const otherUserId = senderId === currentUser._id ? receiverId : senderId
 
-      if (idx > -1) {
-        copy[idx].lastMessage = message
-      } else {
-        // New conversation
-        copy.unshift({
-          user: senderId === currentUser._id ? message.receiver : message.sender,
-          lastMessage: message
-        })
-      }
-      
-      return copy
-    })
-  }, [currentUser])
+        const idx = copy.findIndex(
+          (c) => (c.user?._id?.toString() || c.user?.toString()) === otherUserId
+        )
+
+        if (idx > -1) {
+          copy[idx].lastMessage = message
+        } else {
+          copy.unshift({
+            user: senderId === currentUser._id ? message.receiver : message.sender,
+            lastMessage: message,
+          })
+        }
+        return copy
+      })
+    },
+    [currentUser]
+  )
 
   // ============================================
   // FETCH CONVERSATIONS
@@ -216,7 +97,7 @@ export default function useChat(currentUser) {
   }, [])
 
   // ============================================
-  // FETCH MESSAGES FOR A CONVERSATION
+  // FETCH MESSAGES FOR A CHAT
   // ============================================
   const fetchMessages = useCallback(async (receiverId) => {
     try {
@@ -232,73 +113,78 @@ export default function useChat(currentUser) {
   }, [])
 
   // ============================================
-  // JOIN CONVERSATION
+  // JOIN CHAT
   // ============================================
-  const joinConversation = useCallback((userId) => {
-    if (!socketRef.current || !userId) return
-    
-    const userIdStr = userId.toString()
-    currentChatRef.current = { id: userIdStr }
-    
-    console.log('📥 Joining conversation with:', userIdStr)
-    socketRef.current.emit('conversation:join', userIdStr)
-    fetchMessages(userIdStr)
-  }, [fetchMessages])
+  const joinConversation = useCallback(
+    (userId) => {
+      if (!socket || !connected || !userId) return
+
+      const userIdStr = userId.toString()
+      currentChatRef.current = { id: userIdStr }
+
+      console.log('📥 Joining chat with:', userIdStr)
+      socket.emit('conversation:join', userIdStr)
+      fetchMessages(userIdStr)
+    },
+    [socket, connected, fetchMessages]
+  )
 
   // ============================================
   // SEND MESSAGE
   // ============================================
-  const sendMessage = useCallback(async ({ receiverId, content, messageType = 'text' }) => {
-    if (!socketRef.current || !receiverId || !content?.trim()) {
-      console.warn('⚠️ Cannot send message: missing data or socket not connected')
-      return
-    }
+  const sendMessage = useCallback(
+    async ({ receiverId, content, messageType = 'text' }) => {
+      if (!socket || !receiverId || !content?.trim()) {
+        console.warn('⚠️ Cannot send message: missing data or socket not ready')
+        return
+      }
 
-    const socket = socketRef.current
+      try {
+        const message = await messagesAPI.sendMessage({
+          receiverId,
+          content: content.trim(),
+          messageType,
+        })
 
-    try {
-      // Save to database first
-      const message = await messagesAPI.sendMessage({
-        receiverId,
-        content: content.trim(),
-        messageType
-      })
+        console.log('📤 Sending message via socket:', message._id)
 
-      console.log('📤 Sending message via socket:', message._id)
+        socket.emit('message:send', {
+          receiverId,
+          content: content.trim(),
+          messageType,
+        })
 
-      // Emit via socket
-      socket.emit('message:send', {
-        receiverId,
-        content: content.trim(),
-        messageType
-      })
+        setMessages((prev) => {
+          const exists = prev.some((m) => m._id === message._id)
+          return exists ? prev : [...prev, message]
+        })
 
-      // Optimistically add to UI
-      setMessages(prev => {
-        const exists = prev.some(m => m._id === message._id)
-        return exists ? prev : [...prev, message]
-      })
-
-      // Update conversation preview
-      updateConversationPreview(message)
-
-    } catch (err) {
-      console.error('❌ Failed to send message:', err)
-    }
-  }, [updateConversationPreview])
+        updateConversationPreview(message)
+      } catch (err) {
+        console.error('❌ Failed to send message:', err)
+      }
+    },
+    [socket, updateConversationPreview]
+  )
 
   // ============================================
-  // TYPING INDICATORS
+  // TYPING EVENTS
   // ============================================
-  const startTyping = useCallback((receiverId) => {
-    if (!socketRef.current || !receiverId) return
-    socketRef.current.emit('typing:start', receiverId)
-  }, [])
+  const startTyping = useCallback(
+    (receiverId) => {
+      if (!socket || !receiverId) return
+      socket.emit('typing:start', receiverId)
+    },
+    [socket]
+  )
 
-  const stopTyping = useCallback((receiverId) => {
-    if (!socketRef.current || !receiverId) return
-    socketRef.current.emit('typing:stop', receiverId)
-  }, [])
+  const stopTyping = useCallback(
+    (receiverId) => {
+      if (!socket || !receiverId) return
+      socket.emit('typing:stop', receiverId)
+    },
+    [socket]
+  )
 
   return {
     loading,
@@ -306,12 +192,13 @@ export default function useChat(currentUser) {
     messages,
     onlineUsers,
     isTyping,
-    socketConnected,
+    socketConnected: connected,
     fetchConversations,
     fetchMessages,
     joinConversation,
     sendMessage,
     startTyping,
-    stopTyping
+    stopTyping,
+    isUserOnline,
   }
 }

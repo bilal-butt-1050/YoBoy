@@ -9,24 +9,30 @@ const generateToken = (id) =>
     expiresIn: process.env.JWT_EXPIRE || '30d',
   });
 
-// Cookie settings
-const cookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+// Cookie settings - FIXED for localhost development
+const getCookieOptions = () => {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  return {
+    httpOnly: true,
+    secure: isProduction, // Only secure in production
+    sameSite: isProduction ? 'none' : 'lax', // 'lax' for localhost
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    path: '/', // Important: available across all paths
+  };
 };
 
 // Send token + user data
 const sendTokenResponse = (user, res, status = 200, message = 'Success') => {
   const token = generateToken(user._id);
-  const expires = new Date(
-    Date.now() + ((parseInt(process.env.JWT_COOKIE_EXPIRE, 10) || 30) * 86400000)
-  );
+  const cookieOptions = getCookieOptions();
 
   const sanitizedUser = {
+    _id: user._id,
     id: user._id,
     name: user.name,
     email: user.email,
+    username: user.username,
     avatar: user.avatar,
     bio: user.bio,
     status: user.status,
@@ -34,24 +40,34 @@ const sendTokenResponse = (user, res, status = 200, message = 'Success') => {
     provider: user.provider,
   };
 
+  console.log('🍪 Setting cookie with options:', cookieOptions);
+  console.log('🔑 Token (first 20 chars):', token.substring(0, 20));
+
   res
     .status(status)
-    .cookie('token', token, { ...cookieOptions, expires })
-    .json({ success: true, message, user: sanitizedUser });
+    .cookie('token', token, cookieOptions)
+    .json({ 
+      success: true, 
+      message, 
+      user: sanitizedUser,
+      token // Include token in response for debugging
+    });
 };
 
 // REGISTER USER
 export const register = async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password)
-      return res.status(400).json({ success: false, message: 'Name, email, and password required' });
+    const { name, email, password, username } = req.body;
+    if (!name || !email || !password || !username)
+      return res.status(400).json({ success: false, message: 'All fields are required' });
 
-    const existing = await User.findOne({ email });
-    if (existing)
-      return res.status(400).json({ success: false, message: 'Email already registered' });
+    const existing = await User.findOne({ $or: [{ email }, { username }] });
+    if (existing) {
+      const field = existing.email === email ? 'Email' : 'Username';
+      return res.status(400).json({ success: false, message: `${field} already registered` });
+    }
 
-    const user = await User.create({ name, email, password, provider: 'local' });
+    const user = await User.create({ name, email, password, username, provider: 'local' });
     const token = user.generateVerificationToken();
     await user.save({ validateBeforeSave: false });
 
@@ -93,13 +109,7 @@ export const verifyEmail = async (req, res, next) => {
   }
 };
 
-// ============================================
 // RESEND VERIFICATION EMAIL
-// ============================================
-
-// @desc    Resend email verification link
-// @route   POST /api/auth/resend-verification
-// @access  Public
 export const resendVerification = async (req, res, next) => {
   try {
     const { email } = req.body;
@@ -130,11 +140,13 @@ export const resendVerification = async (req, res, next) => {
   }
 };
 
-
-// LOGIN
+// LOGIN - FIXED
 export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
+    
+    console.log('🔐 Login attempt for:', email);
+    
     if (!email || !password)
       return res.status(400).json({ success: false, message: 'Email and password required' });
 
@@ -156,19 +168,15 @@ export const login = async (req, res, next) => {
     user.status = 'online';
     await user.save();
 
+    console.log('✅ Login successful for:', email);
     sendTokenResponse(user, res, 200, 'Login successful');
   } catch (err) {
+    console.error('❌ Login error:', err);
     next(err);
   }
 };
 
-// ============================================
-// OAUTH SUCCESS & FAILURE HANDLERS
-// ============================================
-
-// @desc    Handle OAuth success
-// @route   GET /api/auth/google/callback
-// @access  Public (triggered by Google OAuth)
+// OAUTH SUCCESS
 export const oauthSuccess = async (req, res) => {
   try {
     if (!req.user) {
@@ -183,12 +191,12 @@ export const oauthSuccess = async (req, res) => {
       expiresIn: process.env.JWT_EXPIRE || '30d',
     });
 
+    const cookieOptions = getCookieOptions();
+
+    console.log('🍪 OAuth: Setting cookie with options:', cookieOptions);
+
     res
-      .cookie('token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      })
+      .cookie('token', token, cookieOptions)
       .redirect(`${process.env.CLIENT_URL}/dashboard`);
   } catch (error) {
     console.error('OAuth success error:', error);
@@ -196,13 +204,10 @@ export const oauthSuccess = async (req, res) => {
   }
 };
 
-// @desc    Handle OAuth failure
-// @route   GET /api/auth/oauth/failure
-// @access  Public
+// OAUTH FAILURE
 export const oauthFailure = (req, res) => {
   res.redirect(`${process.env.CLIENT_URL}/login?error=oauth_failed`);
 };
-
 
 // LOGOUT
 export const logout = async (req, res, next) => {
@@ -238,7 +243,7 @@ export const getMe = async (req, res, next) => {
 // UPDATE PROFILE
 export const updateDetails = async (req, res, next) => {
   try {
-    const allowed = (({ name, email, bio, avatar }) => ({ name, email, bio, avatar }))(req.body);
+    const allowed = (({ name, email, bio, avatar, username }) => ({ name, email, bio, avatar, username }))(req.body);
     const updated = await User.findByIdAndUpdate(req.user._id, allowed, {
       new: true,
       runValidators: true,
@@ -314,4 +319,4 @@ export const resetPassword = async (req, res, next) => {
   } catch (err) {
     next(err);
   }
-};
+}

@@ -59,6 +59,30 @@ export default function DashboardPage() {
     }
   }, [selectedChat, joinConversation, fetchMessages])
 
+
+// Add this at the top of your dashboard page for debugging
+
+useEffect(() => {
+  // Debug: Check if token exists in cookies
+  const checkAuth = () => {
+    console.log('🔍 Checking authentication...')
+    console.log('All cookies:', document.cookie)
+    
+    const cookies = document.cookie.split(';')
+    const tokenCookie = cookies.find(c => c.trim().startsWith('token='))
+    
+    if (tokenCookie) {
+      const token = tokenCookie.split('=')[1]
+      console.log('✅ Token found:', token.substring(0, 20) + '...')
+    } else {
+      console.error('❌ No token cookie found!')
+      console.log('Available cookies:', cookies.map(c => c.trim().split('=')[0]))
+    }
+  }
+  
+  checkAuth()
+}, [])
+
   // handle selecting a user to chat with
   const handleUserSelect = (chatUser) => {
     setSelectedChat(chatUser)

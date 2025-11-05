@@ -5,19 +5,42 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 const api = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
-  withCredentials: true, // enables cookies
+  withCredentials: true, // CRITICAL: This enables cookies
 })
 
-// Global error handler
+// Request interceptor for debugging
+api.interceptors.request.use(
+  (config) => {
+    console.log('📤 API Request:', config.method?.toUpperCase(), config.url)
+    console.log('🍪 Cookies being sent:', document.cookie)
+    return config
+  },
+  (error) => {
+    console.error('❌ Request error:', error)
+    return Promise.reject(error)
+  }
+)
+
+// Response interceptor
 api.interceptors.response.use(
-  (res) => res.data,
+  (res) => {
+    console.log('📥 API Response:', res.config.url, res.status)
+    
+    // Log if token is in response (for debugging)
+    if (res.data?.token) {
+      console.log('🔑 Token received in response')
+    }
+    
+    return res.data
+  },
   (err) => {
     const msg = err.response?.data?.message || 'Something went wrong'
+    console.error('❌ API Error:', err.response?.status, msg)
     return Promise.reject(new Error(msg))
   }
 )
 
-// Auth API aligned with backend
+// Auth API
 export const authAPI = {
   signup: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
@@ -48,6 +71,5 @@ export const messagesAPI = {
   markAsRead: (id) => api.patch(`/messages/${id}/read`),
   deleteMessage: (id) => api.delete(`/messages/${id}`),
 }
-
 
 export default api

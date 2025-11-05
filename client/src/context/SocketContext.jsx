@@ -5,10 +5,27 @@ import { io } from 'socket.io-client'
 import { useAuth } from './AuthContext'
 
 const SocketContext = createContext()
+
 export const useSocket = () => {
   const context = useContext(SocketContext)
   if (!context) throw new Error('useSocket must be used within SocketProvider')
   return context
+}
+
+// Helper to get token from cookies
+function getTokenFromCookie() {
+  if (typeof document === 'undefined') return null
+  
+  const cookies = document.cookie.split(';')
+  
+  for (let cookie of cookies) {
+    const trimmedCookie = cookie.trim()
+    if (trimmedCookie.startsWith('token=')) {
+      return trimmedCookie.substring('token='.length)
+    }
+  }
+  
+  return null
 }
 
 export const SocketProvider = ({ children }) => {
@@ -18,23 +35,83 @@ export const SocketProvider = ({ children }) => {
   const { user, isAuthenticated } = useAuth()
 
   useEffect(() => {
-    if (!isAuthenticated || !user) { if (socket) { socket.close(); setSocket(null); setConnected(false); setOnlineUsers([]) }; return }
+    // Clean up if not authenticated
+    if (!isAuthenticated || !user) {
+      if (socket) {
+        socket.close()
+        setSocket(null)
+        setConnected(false)
+        setOnlineUsers([])
+      }
+      return
+    }
 
-    const token = document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1]
-    if (!token) return
+    const token = getTokenFromCookie()
+    
+    if (!token) {
+      console.error('❌ No auth token found in cookies')
+      return
+    }
 
-    const newSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL, { auth: { token }, withCredentials: true })
+    console.log('🔌 Initializing socket with token:', token.substring(0, 20) + '...')
+
+    const newSocket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000', {
+      auth: { token },
+      withCredentials: true,
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: 5
+    })
+
     setSocket(newSocket)
 
-    newSocket.on('connect', () => setConnected(true))
-    newSocket.on('disconnect', () => setConnected(false))
-    newSocket.on('users:online', users => setOnlineUsers(users))
-    newSocket.on('user:online', ({ userId }) => setOnlineUsers(prev => [...new Set([...prev, userId])]))
-    newSocket.on('user:offline', ({ userId }) => setOnlineUsers(prev => prev.filter(id => id !== userId)))
-    newSocket.on('connect_error', (err) => console.error('Socket connection error:', err))
+    newSocket.on('connect', () => {
+      console.log('✅ Socket connected:', newSocket.id)
+      setConnected(true)
+    })
 
-    return () => newSocket.close()
+    newSocket.on('disconnect', () => {
+      console.log('🔴 Socket disconnected')
+      setConnected(false)
+    })
+
+    newSocket.on('users:online', (users) => {
+      console.log('👥 Online users:', users)
+      setOnlineUsers(users)
+    })
+
+    newSocket.on('user:online', ({ userId }) => {
+      console.log('🟢 User online:', userId)
+      setOnlineUsers((prev) => [...new Set([...prev, userId])])
+    })
+
+    newSocket.on('user:offline', ({ userId }) => {
+      console.log('🔴 User offline:', userId)
+      setOnlineUsers((prev) => prev.filter((id) => id !== userId))
+    })
+
+    newSocket.on('connect_error', (err) => {
+      console.error('❌ Socket connection error:', err.message)
+    })
+
+    return () => {
+      console.log('🧹 Cleaning up socket connection')
+      newSocket.close()
+    }
   }, [isAuthenticated, user])
 
-  return <SocketContext.Provider value={{ socket, connected, onlineUsers, isUserOnline: (id) => onlineUsers.includes(id) }}>{children}</SocketContext.Provider>
+  return (
+    <SocketContext.Provider
+      value={{
+        socket,
+        connected,
+        onlineUsers,
+        isUserOnline: (id) => onlineUsers.includes(id),
+      }}
+    >
+      {children}
+    </SocketContext.Provider>
+  )
 }
