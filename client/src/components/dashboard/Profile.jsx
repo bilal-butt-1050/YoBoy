@@ -1,16 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  Camera,
-  Mail,
-  Calendar,
-  User as UserIcon,
-  AtSign,
-  Edit2,
-  Save,
-  X,
-} from 'lucide-react'
+import { Camera, Mail, Calendar, User as UserIcon, AtSign, Edit2, Save, X } from 'lucide-react'
 import { usersAPI } from '../../lib/api'
 import { useAuth } from '../../context/AuthContext'
 import './profile.css'
@@ -26,23 +17,17 @@ export default function Profile() {
   })
   const [success, setSuccess] = useState(false)
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    })
-  }
+  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value })
 
   const handleSave = async () => {
     try {
-      const updatedUser = await usersAPI.updateProfile(formData)
+      await usersAPI.updateProfile(formData)
       await checkAuth()
       setIsEditing(false)
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
-    } catch (error) {
-      console.error('Error updating profile:', error)
-      // Handle error display
+    } catch (err) {
+      console.error(err)
     }
   }
 
@@ -56,43 +41,22 @@ export default function Profile() {
     setIsEditing(false)
   }
 
-  const handleAvatarUpload = () => {
-    console.log('Upload avatar')
-    // Backend logic will be added here
-  }
+  const handleAvatarUpload = () => console.log('Upload avatar')
 
-  const getUserInitials = (name) => {
-    return name
-      .split(' ')
-      .map((word) => word[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2)
-  }
+  const getUserInitials = (name) =>
+    name?.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2)
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', {
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    })
-  }
+  const formatDate = (date) =>
+    new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 
-  if (loading || !user) {
-    return <div>Loading...</div>
-  }
+  if (loading || !user) return <div className="loading-state">Loading...</div>
 
   return (
     <div className="profile-container">
       <div className="profile-header-section">
         <h2>My Profile</h2>
-        <p>Manage your personal information and preferences</p>
-        {success && (
-          <div className="p-4 mb-4 text-sm text-green-700 bg-green-100 rounded-lg">
-            Profile updated successfully!
-          </div>
-        )}
+        <p>Manage your personal info and preferences</p>
+        {success && <div className="success-toast">Profile updated successfully!</div>}
       </div>
 
       <div className="profile-content">
@@ -102,17 +66,9 @@ export default function Profile() {
           <div className="profile-avatar-section">
             <div className="profile-avatar-wrapper">
               <div className="profile-avatar-large">
-                {user.avatar ? (
-                  <img src={user.avatar} alt={user.name} />
-                ) : (
-                  getUserInitials(user.name)
-                )}
+                {user.avatar ? <img src={user.avatar} alt={user.name} /> : getUserInitials(user.name)}
               </div>
-              <button
-                className="avatar-upload-btn"
-                onClick={handleAvatarUpload}
-                title="Change avatar"
-              >
+              <button className="avatar-upload-btn" onClick={handleAvatarUpload} title="Change avatar">
                 <Camera size={18} />
               </button>
             </div>
@@ -121,50 +77,26 @@ export default function Profile() {
           <div className="profile-body">
             {isEditing ? (
               <div className="profile-edit-form">
-                <div className="form-group">
-                  <label htmlFor="name">
-                    <UserIcon size={18} />
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="username">
-                    <AtSign size={18} />
-                    Username
-                  </label>
-                  <input
-                    type="text"
-                    id="username"
-                    name="username"
-                    value={formData.username}
-                    onChange={handleChange}
-                    className="form-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="email">
-                    <Mail size={18} />
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className="form-input"
-                  />
-                </div>
+                {[
+                  { icon: UserIcon, label: 'Full Name', name: 'name', type: 'text' },
+                  { icon: AtSign, label: 'Username', name: 'username', type: 'text' },
+                  { icon: Mail, label: 'Email', name: 'email', type: 'email' },
+                ].map((field) => (
+                  <div key={field.name} className="form-group">
+                    <label htmlFor={field.name}>
+                      <field.icon size={18} />
+                      {field.label}
+                    </label>
+                    <input
+                      type={field.type}
+                      id={field.name}
+                      name={field.name}
+                      value={formData[field.name]}
+                      onChange={handleChange}
+                      className="form-input"
+                    />
+                  </div>
+                ))}
 
                 <div className="form-group">
                   <label htmlFor="bio">
@@ -180,9 +112,7 @@ export default function Profile() {
                     rows="3"
                     maxLength="150"
                   />
-                  <span className="char-count">
-                    {formData.bio.length}/150
-                  </span>
+                  <span className="char-count">{formData.bio.length}/150</span>
                 </div>
 
                 <div className="form-actions">
@@ -203,34 +133,24 @@ export default function Profile() {
                   <p className="profile-username">@{user.username}</p>
                 </div>
 
-                <button
-                  className="btn-edit"
-                  onClick={() => setIsEditing(true)}
-                >
+                <button className="btn-edit" onClick={() => setIsEditing(true)}>
                   <Edit2 size={18} />
                   Edit Profile
                 </button>
 
                 <div className="profile-info-grid">
                   <div className="info-item">
-                    <div className="info-icon">
-                      <Mail size={20} />
-                    </div>
+                    <Mail size={20} />
                     <div className="info-content">
                       <span className="info-label">Email</span>
                       <span className="info-value">{user.email}</span>
                     </div>
                   </div>
-
                   <div className="info-item">
-                    <div className="info-icon">
-                      <Calendar size={20} />
-                    </div>
+                    <Calendar size={20} />
                     <div className="info-content">
                       <span className="info-label">Joined</span>
-                      <span className="info-value">
-                        {formatDate(user.createdAt)}
-                      </span>
+                      <span className="info-value">{formatDate(user.createdAt)}</span>
                     </div>
                   </div>
                 </div>

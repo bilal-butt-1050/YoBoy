@@ -1,6 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Loader2 } from 'lucide-react'
+
 import Sidebar from '@/components/dashboard/Sidebar'
 import ChatList from '@/components/dashboard/ChatList'
 import ChatWindow from '@/components/dashboard/ChatWindow'
@@ -8,17 +11,15 @@ import SearchUsers from '@/components/dashboard/SearchUsers'
 import Profile from '@/components/dashboard/Profile'
 import Settings from '@/components/dashboard/Settings'
 import { useAuth } from '../../context/AuthContext'
-import { Loader2 } from 'lucide-react'
-import { useRouter } from 'next/navigation'
 import useChat from '@/hooks/useChat'
+
 import './dashboard.css'
 
 export default function DashboardPage() {
   const { user, logout, isAuthenticated, loading: authLoading } = useAuth()
   const router = useRouter()
-
   const [activeView, setActiveView] = useState('chats')
-  const [selectedChat, setSelectedChat] = useState(null) // selected user object
+  const [selectedChat, setSelectedChat] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
   const messagesEndRef = useRef(null)
 
@@ -38,67 +39,43 @@ export default function DashboardPage() {
     loading: chatLoading,
   } = useChat(user)
 
-  // redirect if not auth
+  // redirect if not authenticated
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
-      router.push('/login')
-    }
+    if (!authLoading && !isAuthenticated) router.push('/login')
   }, [authLoading, isAuthenticated, router])
 
-  // initial load of convos + users
+  // fetch conversations on load
   useEffect(() => {
-    if (!user) return
-    fetchConversations()
-    // optional: fetchUsers() if you need user directory (search page uses its own fetch)
+    if (user) fetchConversations()
   }, [user, fetchConversations])
 
-  // when selected chat changes: join room + scroll/load messages
+  // join conversation when selected
   useEffect(() => {
-    if (!selectedChat) return
-    const otherId = selectedChat._id || selectedChat.id
-    joinConversation(otherId)
+    if (selectedChat) joinConversation(selectedChat._id || selectedChat.id)
   }, [selectedChat, joinConversation])
 
-  // Click handler from chat list
   const handleUserSelect = (userObj) => {
     setSelectedChat(userObj)
     setActiveView('chats')
   }
 
-  // send message wrapper (ChatWindow will manage its local input state)
   const handleSendMessage = async (content) => {
     if (!selectedChat) return
     await sendMessage({ receiverId: selectedChat._id || selectedChat.id, content })
-    // refresh conversations so sidebar shows latest; light and infrequent
     fetchConversations()
-    // scroll handled by ChatWindow via messagesEndRef
   }
 
-  // mark a message read (when message becomes visible)
-  const handleMarkAsRead = (messageId) => {
-    markAsRead(messageId)
-    // optionally refresh conversations if you want
-  }
+  const handleMarkAsRead = (messageId) => markAsRead(messageId)
 
-  const filteredUsersFromConversations = () => {
-    if (Array.isArray(conversations) && conversations.length > 0) {
-      return conversations
-        .map((conv) => ({
-          ...conv.user,
-          lastMessage: conv.lastMessage,
-        }))
-        .filter(Boolean)
-    }
-    return []
-  }
-
-  const filteredUsers = searchQuery
-    ? filteredUsersFromConversations().filter(
-        (u) =>
-          u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          u.email?.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : filteredUsersFromConversations()
+  const filteredUsers = conversations
+    ?.map((conv) => ({ ...conv.user, lastMessage: conv.lastMessage }))
+    .filter(Boolean)
+    .filter(
+      (u) =>
+        !searchQuery ||
+        u.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    ) || []
 
   const renderMainContent = () => {
     switch (activeView) {
@@ -124,7 +101,6 @@ export default function DashboardPage() {
               stopTyping={() => stopTyping(selectedChat?._id || selectedChat?.id)}
               isTyping={isTyping}
               markAsRead={handleMarkAsRead}
-              sending={false}
             />
           </div>
         )

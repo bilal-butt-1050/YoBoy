@@ -26,9 +26,7 @@ export default function ChatList({
     <div className="chat-list-container">
       <div className="chat-list-header">
         <h3>Messages</h3>
-        <button className="more-btn">
-          <MoreVertical size={20} />
-        </button>
+        <button className="more-btn"><MoreVertical size={20} /></button>
       </div>
 
       <div className="search-container">
@@ -50,8 +48,8 @@ export default function ChatList({
         ) : (
           users.map((user) => {
             const userId = (user._id || user.id || '').toString()
-            const isActive = selectedChat && (selectedChat._id || selectedChat.id || '').toString() === userId
-            const isOnline = onlineUsers && onlineUsers.has && onlineUsers.has(userId)
+            const isActive = selectedChat && (selectedChat._id || selectedChat.id || '') === userId
+            const isOnline = onlineUsers.has?.(userId)
 
             return (
               <div
@@ -66,12 +64,8 @@ export default function ChatList({
                   {isOnline && <div className="online-indicator" />}
                 </div>
                 <div className="chat-info">
-                  <div className="chat-header">
-                    <h4>{user.name}</h4>
-                  </div>
-                  <div className="chat-preview">
-                    <p>{user.lastMessage?.content || user.lastMessage || ''}</p>
-                  </div>
+                  <h4>{user.name}</h4>
+                  <p>{user.lastMessage?.content || user.lastMessage || ''}</p>
                 </div>
               </div>
             )

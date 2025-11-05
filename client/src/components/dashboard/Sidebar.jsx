@@ -4,12 +4,7 @@ import { MessageSquare, Search, User, Settings, LogOut } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
 import './sidebar.css'
 
-export default function Sidebar({
-  activeView,
-  setActiveView,
-  isMobileOpen,
-  setIsMobileOpen,
-}) {
+export default function Sidebar({ activeView, setActiveView, isMobileOpen, setIsMobileOpen }) {
   const { user, logout } = useAuth()
 
   const navItems = [
@@ -19,35 +14,19 @@ export default function Sidebar({
     { id: 'settings', label: 'Settings', icon: Settings },
   ]
 
-  const handleNavClick = (viewId) => {
-    setActiveView(viewId)
-    if (setIsMobileOpen) {
-      setIsMobileOpen(false)
-    }
-  }
-
-  const handleLogout = () => {
-    logout()
-  }
-
-  const getUserInitials = (name) => {
-    if (!name) return ''
-    return name
-      .split(' ')
-      .map((word) => word[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2)
-  }
+  const getUserInitials = (name) =>
+    name
+      ? name
+          .split(' ')
+          .map((n) => n[0])
+          .join('')
+          .toUpperCase()
+          .slice(0, 2)
+      : ''
 
   return (
     <>
-      {isMobileOpen && (
-        <div
-          className="mobile-overlay active"
-          onClick={() => setIsMobileOpen(false)}
-        />
-      )}
+      {isMobileOpen && <div className="mobile-overlay active" onClick={() => setIsMobileOpen(false)} />}
       <aside className={`sidebar ${isMobileOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-header">
           <h2>ChatFlow</h2>
@@ -60,7 +39,10 @@ export default function Sidebar({
               <button
                 key={item.id}
                 className={`nav-item ${activeView === item.id ? 'active' : ''}`}
-                onClick={() => handleNavClick(item.id)}
+                onClick={() => {
+                  setActiveView(item.id)
+                  setIsMobileOpen?.(false)
+                }}
               >
                 <Icon size={20} />
                 <span>{item.label}</span>
@@ -71,16 +53,9 @@ export default function Sidebar({
 
         <div className="sidebar-footer">
           {user && (
-            <div
-              className="user-profile-mini"
-              onClick={() => handleNavClick('profile')}
-            >
+            <div className="user-profile-mini" onClick={() => setActiveView('profile')}>
               <div className="user-avatar">
-                {user.avatar ? (
-                  <img src={user.avatar} alt={user.name} />
-                ) : (
-                  getUserInitials(user.name)
-                )}
+                {user.avatar ? <img src={user.avatar} alt={user.name} /> : getUserInitials(user.name)}
               </div>
               <div className="user-info">
                 <h4>{user.name}</h4>
@@ -89,7 +64,7 @@ export default function Sidebar({
             </div>
           )}
 
-          <button className="logout-btn" onClick={handleLogout}>
+          <button className="logout-btn" onClick={logout}>
             <LogOut size={18} />
             <span>Logout</span>
           </button>

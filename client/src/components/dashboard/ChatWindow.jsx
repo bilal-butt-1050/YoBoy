@@ -17,54 +17,8 @@ export default function ChatWindow({
   sending,
 }) {
   const [input, setInput] = useState('')
-  const localMessagesRef = useRef([])
 
-  useEffect(() => {
-    // when current conversation changes, reset input and local ref
-    setInput('')
-    localMessagesRef.current = []
-  }, [selectedChat?.id, selectedChat?._id])
-
-  // Defensive: ensure messages is array
   const safeMessages = Array.isArray(messages) ? messages : []
-
-  // scroll when messages change
-  useEffect(() => {
-    messagesEndRef?.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [safeMessages.length, isTyping])
-
-  const handleSubmit = async (e) => {
-    if (e && e.preventDefault) e.preventDefault()
-    const trimmed = (input || '').trim()
-    if (!trimmed || !selectedChat) return
-    await onSendMessage(trimmed)
-    setInput('')
-    stopTyping && stopTyping()
-  }
-
-  const handleKeyDown = (e) => {
-    // optional: enter to send
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSubmit()
-      return
-    }
-    // inform server about typing start
-    startTyping && startTyping()
-    // throttle a stop typing later in Dashboard/hook if needed
-  }
-
-  // when messages render, optionally mark unread messages as read
-  useEffect(() => {
-    if (!safeMessages.length || !currentUser || !selectedChat) return
-    // mark any messages where current user is receiver and isRead is false
-    safeMessages.forEach((m) => {
-      const receiverId = m.receiver?._id?.toString() || m.receiver?.toString()
-      if (receiverId === (currentUser._id || currentUser.id)?.toString() && !m.isRead) {
-        markAsRead && markAsRead(m._id)
-      }
-    })
-  }, [safeMessages, currentUser, selectedChat, markAsRead])
 
   const getUserInitials = (name) =>
     (name || '')
@@ -73,6 +27,43 @@ export default function ChatWindow({
       .join('')
       .toUpperCase()
       .slice(0, 2)
+
+  // reset input when conversation changes
+  useEffect(() => setInput(''), [selectedChat?.id, selectedChat?._id])
+
+  // scroll to bottom
+  useEffect(() => {
+    messagesEndRef?.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [safeMessages.length, isTyping])
+
+  // mark unread messages as read
+  useEffect(() => {
+    if (!currentUser || !selectedChat) return
+    safeMessages.forEach((m) => {
+      const receiverId = m.receiver?._id?.toString() || m.receiver?.toString()
+      if (receiverId === (currentUser._id || currentUser.id)?.toString() && !m.isRead) {
+        markAsRead?.(m._id)
+      }
+    })
+  }, [safeMessages, currentUser, selectedChat, markAsRead])
+
+  const handleSubmit = async (e) => {
+    e?.preventDefault()
+    const trimmed = input.trim()
+    if (!trimmed || !selectedChat) return
+    await onSendMessage(trimmed)
+    setInput('')
+    stopTyping?.()
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSubmit()
+      return
+    }
+    startTyping?.()
+  }
 
   if (!selectedChat) {
     return (
@@ -133,7 +124,6 @@ export default function ChatWindow({
         <button type="button" className="input-action-btn"><Paperclip size={20} /></button>
         <input
           type="text"
-          name="messageInput"
           placeholder="Type a message..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
