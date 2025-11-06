@@ -40,6 +40,9 @@ export default function DashboardPage() {
     loading: chatLoading,
   } = useChat(user)
 
+
+
+  
   // redirect if not authenticated
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.push('/login')
@@ -89,14 +92,12 @@ useEffect(() => {
     setActiveView('chats')
   }
 
-  // send message handler
-  const handleSendMessage = async (content) => {
-    if (!selectedChat || !content.trim()) return
-    await sendMessage({
-      receiverId: selectedChat._id || selectedChat.id,
-      content,
-    })
-  }
+const handleSendMessage = async (content) => {
+  if (!selectedChat || !content.trim()) return
+  await sendMessage({ receiverId: selectedChat._id || selectedChat.id, content })
+  setInput('')  // reset input
+}
+
 
   const handleMarkAsRead = (messageId) => markAsRead(messageId)
 

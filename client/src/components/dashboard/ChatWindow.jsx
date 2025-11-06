@@ -200,12 +200,12 @@ export default function ChatWindow({
         <input
           type="text"
           placeholder={
-            socketConnected ? 'Type a message...' : 'Connecting to chat...'
+              'Type a message...' 
           }
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={!socketConnected}
+          // disabled={!socketConnected}
           className="message-input"
         />
         <button type="button" className="input-action-btn">
@@ -214,7 +214,7 @@ export default function ChatWindow({
         <button
           type="submit"
           className="send-btn"
-          disabled={!input?.trim() || !socketConnected}
+          disabled={!input?.trim()}
         >
           <Send size={20} />
         </button>

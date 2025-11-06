@@ -5,7 +5,7 @@ import { messagesAPI } from '@/lib/api'
 import { useSocket } from '@/context/SocketContext'
 
 export default function useChat(currentUser) {
-  const { socket, connected, onlineUsers, isUserOnline } = useSocket()
+  const { socket, onlineUsers, isUserOnline } = useSocket()
 
   const [loading, setLoading] = useState(false)
   const [conversations, setConversations] = useState([])
@@ -14,177 +14,134 @@ export default function useChat(currentUser) {
 
   const currentChatRef = useRef(null)
 
-  // ============================================
-  // SOCKET EVENTS
-  // ============================================
-  useEffect(() => {
-    if (!socket || !connected) return
-
-    console.log('✅ Socket available in useChat')
-
-    socket.on('message:receive', (message) => {
-      console.log('📩 Message received:', message._id)
-
-      const currentChat = currentChatRef.current
-      if (!currentChat) return
-
-      const activeChatId = currentChat.id?.toString()
-      const senderId = message.sender?._id?.toString() || message.sender?.toString()
-      const receiverId = message.receiver?._id?.toString() || message.receiver?.toString()
-
-      if (senderId === activeChatId || receiverId === activeChatId || senderId === currentUser._id) {
-        setMessages((prev) => {
-          const exists = prev.some((m) => m._id === message._id)
-          return exists ? prev : [...prev, message]
-        })
-      }
-
-      updateConversationPreview(message)
-    })
-
-    socket.on('typing:start', () => setIsTyping(true))
-    socket.on('typing:stop', () => setIsTyping(false))
-
-    return () => {
-      socket.off('message:receive')
-      socket.off('typing:start')
-      socket.off('typing:stop')
-    }
-  }, [socket, connected, currentUser])
-
-  // ============================================
-  // UPDATE CONVERSATION PREVIEW
-  // ============================================
-  const updateConversationPreview = useCallback(
-    (message) => {
-      setConversations((prev) => {
-        const copy = [...prev]
-        const senderId = message.sender?._id?.toString() || message.sender?.toString()
-        const receiverId = message.receiver?._id?.toString() || message.receiver?.toString()
-        const otherUserId = senderId === currentUser._id ? receiverId : senderId
-
-        const idx = copy.findIndex(
-          (c) => (c.user?._id?.toString() || c.user?.toString()) === otherUserId
-        )
-
-        if (idx > -1) {
-          copy[idx].lastMessage = message
-        } else {
-          copy.unshift({
-            user: senderId === currentUser._id ? message.receiver : message.sender,
-            lastMessage: message,
-          })
-        }
-        return copy
-      })
-    },
-    [currentUser]
-  )
-
-  // ============================================
-  // FETCH CONVERSATIONS
-  // ============================================
+  // -------------------------------
+  // FETCH CONVERSATIONS (sidebar)
+  // -------------------------------
   const fetchConversations = useCallback(async () => {
+    if (!currentUser) return
+    setLoading(true)
     try {
-      setLoading(true)
       const data = await messagesAPI.getConversations()
-      setConversations(data || [])
+      setConversations(Array.isArray(data) ? data : [])
     } catch (err) {
-      console.error('❌ Failed to fetch conversations:', err)
+      console.error('Error fetching conversations:', err)
+      setConversations([])
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [currentUser])
 
-  // ============================================
-  // FETCH MESSAGES FOR A CHAT
-  // ============================================
+  // -------------------------------
+  // FETCH MESSAGES (specific chat)
+  // -------------------------------
   const fetchMessages = useCallback(async (receiverId) => {
+    if (!receiverId) return
+    setLoading(true)
     try {
-      setLoading(true)
-      const response = await messagesAPI.getMessages(receiverId)
-      setMessages(response.messages || [])
+      const res = await messagesAPI.getMessages(receiverId)
+      const msgs = res?.messages || res || []
+      setMessages(msgs)
     } catch (err) {
-      console.error('❌ Failed to fetch messages:', err)
+      console.error('Error fetching messages:', err)
       setMessages([])
     } finally {
       setLoading(false)
     }
   }, [])
 
-  // ============================================
-  // JOIN CHAT
-  // ============================================
-  const joinConversation = useCallback(
-    (userId) => {
-      if (!socket || !connected || !userId) return
+  // -------------------------------
+  // JOIN CONVERSATION
+  // -------------------------------
+  const joinConversation = useCallback((userId) => {
+    if (!socket || !userId) return
+    currentChatRef.current = { id: userId.toString() }
+    socket.emit('conversation:join', userId)
+    fetchMessages(userId)
+  }, [socket, fetchMessages])
 
-      const userIdStr = userId.toString()
-      currentChatRef.current = { id: userIdStr }
-
-      console.log('📥 Joining chat with:', userIdStr)
-      socket.emit('conversation:join', userIdStr)
-      fetchMessages(userIdStr)
-    },
-    [socket, connected, fetchMessages]
-  )
-
-  // ============================================
+  // -------------------------------
   // SEND MESSAGE
-  // ============================================
-  const sendMessage = useCallback(
-    async ({ receiverId, content, messageType = 'text' }) => {
-      if (!socket || !receiverId || !content?.trim()) {
-        console.warn('⚠️ Cannot send message: missing data or socket not ready')
-        return
-      }
+  // -------------------------------
+  const sendMessage = useCallback(async ({ receiverId, content, messageType = 'text' }) => {
+    if (!socket) {
+      console.warn('Socket not ready. Message not sent.')
+      return
+    }
+    if (!receiverId || !content?.trim()) return
 
-      try {
-        const message = await messagesAPI.sendMessage({
-          receiverId,
-          content: content.trim(),
-          messageType,
-        })
+    try {
+      // Save to DB
+      const message = await messagesAPI.sendMessage({
+        receiverId,
+        content: content.trim(),
+        messageType,
+      })
 
-        console.log('📤 Sending message via socket:', message._id)
+      // Update UI
+      setMessages((prev) => [...prev, message])
 
-        socket.emit('message:send', {
-          receiverId,
-          content: content.trim(),
-          messageType,
-        })
+      // Emit to socket
+      socket.emit('message:send', { receiverId, content: content.trim(), messageType })
+    } catch (err) {
+      console.error('Error sending message:', err)
+    }
+  }, [socket])
 
+  // -------------------------------
+  // SOCKET LISTENERS
+  // -------------------------------
+  useEffect(() => {
+    if (!socket) return
+
+    const handleNewMessage = (message) => {
+      const chat = currentChatRef.current
+      if (!chat) return
+
+      const activeChatId = chat.id?.toString()
+      const senderId = message.sender?._id?.toString() || message.sender?.toString()
+      const receiverId = message.receiver?._id?.toString() || message.receiver?.toString()
+      const myId = currentUser?._id?.toString()
+
+      if ([senderId, receiverId].includes(activeChatId) || senderId === myId) {
         setMessages((prev) => {
-          const exists = prev.some((m) => m._id === message._id)
-          return exists ? prev : [...prev, message]
+          if (prev.some((m) => m._id === message._id)) return prev
+          return [...prev, message]
         })
-
-        updateConversationPreview(message)
-      } catch (err) {
-        console.error('❌ Failed to send message:', err)
       }
-    },
-    [socket, updateConversationPreview]
-  )
+    }
 
-  // ============================================
+    socket.on('message:receive', handleNewMessage)
+    socket.on('typing:start', () => setIsTyping(true))
+    socket.on('typing:stop', () => setIsTyping(false))
+
+    return () => {
+      socket.off('message:receive', handleNewMessage)
+      socket.off('typing:start')
+      socket.off('typing:stop')
+    }
+  }, [socket, currentUser])
+
+  // -------------------------------
   // TYPING EVENTS
-  // ============================================
-  const startTyping = useCallback(
-    (receiverId) => {
-      if (!socket || !receiverId) return
-      socket.emit('typing:start', receiverId)
-    },
-    [socket]
-  )
+  // -------------------------------
+  const startTyping = useCallback((receiverId) => {
+    if (socket && receiverId) socket.emit('typing:start', receiverId)
+  }, [socket])
 
-  const stopTyping = useCallback(
-    (receiverId) => {
-      if (!socket || !receiverId) return
-      socket.emit('typing:stop', receiverId)
-    },
-    [socket]
-  )
+  const stopTyping = useCallback((receiverId) => {
+    if (socket && receiverId) socket.emit('typing:stop', receiverId)
+  }, [socket])
+
+  // -------------------------------
+  // MARK MESSAGE AS READ
+  // -------------------------------
+  const markAsRead = useCallback(async (messageId) => {
+    try {
+      await messagesAPI.markAsRead(messageId)
+    } catch (err) {
+      console.error('Error marking as read:', err)
+    }
+  }, [])
 
   return {
     loading,
@@ -192,7 +149,7 @@ export default function useChat(currentUser) {
     messages,
     onlineUsers,
     isTyping,
-    socketConnected: connected,
+    socketConnected: !!socket,
     fetchConversations,
     fetchMessages,
     joinConversation,
@@ -200,5 +157,6 @@ export default function useChat(currentUser) {
     startTyping,
     stopTyping,
     isUserOnline,
+    markAsRead,
   }
 }
