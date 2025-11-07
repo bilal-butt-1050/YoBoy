@@ -177,8 +177,6 @@ const handleSendMessage = async (content) => {
         activeView={activeView}
         setActiveView={setActiveView}
         currentUser={user}
-        isMobileOpen={false}
-        setIsMobileOpen={() => {}}
         logout={logout}
       />
       <main className="main-content">{renderMainContent()}</main>

@@ -63,12 +63,14 @@ export default function ChatList({
             const isOnline = onlineUsers.has?.(userId)
 
             const lastMsg = user.lastMessage?.content || ''
-            const lastMsgTime = user.lastMessage?.createdAt
-              ? new Date(user.lastMessage.createdAt).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })
-              : ''
+ const lastMsgTime = user.lastMessage?.createdAt
+  ? new Date(user.lastMessage.createdAt).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23' // <- forces 24-hour format
+    })
+  : ''
+
 
             return (
               <div

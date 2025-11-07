@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState , useEffect} from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { User, AtSign, Mail, Lock, Eye, EyeOff, MessageCircle, Loader2 } from 'lucide-react'
@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext'
 import './signup.css'
 
 export default function SignUp() {
-  const { signup } = useAuth()
+  const { signup, user } = useAuth()
   const router = useRouter()
   const [formData, setFormData] = useState({ name: '', username: '', email: '', password: '', confirmPassword: '' })
   const [showPassword, setShowPassword] = useState(false)
@@ -38,6 +38,10 @@ export default function SignUp() {
       setError(result.message)
     }
   }
+
+  useEffect(() => {
+  if (user) router.replace('/dashboard')
+}, [user, router])
 
   return (
     <div className="signup-container">

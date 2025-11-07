@@ -8,7 +8,7 @@ import { useAuth } from '../../context/AuthContext'
 import './login.css'
 
 export default function Login() {
-  const { login } = useAuth()
+  const { login, user } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -26,6 +26,10 @@ export default function Login() {
       setError('OAuth authentication failed. Please try again or use email/password.')
     }
   }, [searchParams])
+
+  useEffect(() => {
+  if (user) router.replace('/dashboard')
+}, [user, router])
 
   const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value })
 
@@ -160,5 +164,5 @@ export default function Login() {
         </div>
       </div>
     </div>
-  )
-}
+  )}
+

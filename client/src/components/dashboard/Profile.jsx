@@ -49,126 +49,123 @@ export default function Profile() {
   const formatDate = (date) =>
     new Date(date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
 
-  if (loading || !user) return <div className="loading-state">Loading...</div>
+  if (loading || !user)
+    return (
+      <div className="profile-loading">
+        <div className="profile-spinner"></div>
+      </div>
+    )
 
   return (
-    <div className="profile-container">
-      <div className="profile-header-section">
-        <h2>My Profile</h2>
-        <p>Manage your personal info and preferences</p>
-        {success && <div className="success-toast">Profile updated successfully!</div>}
+    <div className="profile-container profile-animate">
+      <div className="profile-header">
+        <div className="profile-header-content">
+          <h2>My Profile</h2>
+          <p>Manage your personal info and preferences</p>
+          {success && <div className="profile-btn profile-btn-primary">Profile updated successfully!</div>}
+        </div>
       </div>
 
       <div className="profile-content">
-        <div className="profile-card">
-          <div className="profile-banner"></div>
-
+        <div className="profile-section">
           <div className="profile-avatar-section">
-            <div className="profile-avatar-wrapper">
-              <div className="profile-avatar-large">
-                {user.avatar ? <img src={user.avatar} alt={user.name} /> : getUserInitials(user.name)}
-              </div>
-              <button className="avatar-upload-btn" onClick={handleAvatarUpload} title="Change avatar">
-                <Camera size={18} />
-              </button>
-            </div>
+            {user.avatar ? (
+              <img className="profile-avatar" src={user.avatar} alt={user.name} />
+            ) : (
+              <div className="profile-avatar-placeholder">{getUserInitials(user.name)}</div>
+            )}
+            <button className="profile-avatar-edit-btn" onClick={handleAvatarUpload}>
+              <Camera size={18} />
+            </button>
           </div>
 
-          <div className="profile-body">
+          <div className="profile-info">
             {isEditing ? (
-              <div className="profile-edit-form">
-                {[
+              <div>
+                {[ 
                   { icon: UserIcon, label: 'Full Name', name: 'name', type: 'text' },
                   { icon: AtSign, label: 'Username', name: 'username', type: 'text' },
                   { icon: Mail, label: 'Email', name: 'email', type: 'email' },
                 ].map((field) => (
-                  <div key={field.name} className="form-group">
-                    <label htmlFor={field.name}>
-                      <field.icon size={18} />
-                      {field.label}
+                  <div key={field.name} className="profile-form-group">
+                    <label className="profile-form-label">
+                      <field.icon size={18} /> {field.label}
                     </label>
                     <input
+                      className="profile-form-input"
                       type={field.type}
-                      id={field.name}
                       name={field.name}
                       value={formData[field.name]}
                       onChange={handleChange}
-                      className="form-input"
                     />
                   </div>
                 ))}
 
-                <div className="form-group">
-                  <label htmlFor="bio">
-                    <Edit2 size={18} />
-                    Bio
+                <div className="profile-form-group">
+                  <label className="profile-form-label">
+                    <Edit2 size={18} /> Bio
                   </label>
                   <textarea
-                    id="bio"
+                    className="profile-form-textarea"
                     name="bio"
                     value={formData.bio}
                     onChange={handleChange}
-                    className="form-textarea"
                     rows="3"
                     maxLength="150"
                   />
-                  <span className="char-count">{formData.bio.length}/150</span>
+                  <span className="profile-info-value">{formData.bio.length}/150</span>
                 </div>
 
-                <div className="form-actions">
-                  <button className="btn-save" onClick={handleSave}>
-                    <Save size={18} />
-                    Save Changes
+                <div className="profile-btn-group">
+                  <button className="profile-btn profile-btn-primary" onClick={handleSave}>
+                    <Save size={18} /> Save Changes
                   </button>
-                  <button className="btn-cancel" onClick={handleCancel}>
-                    <X size={18} />
-                    Cancel
+                  <button className="profile-btn profile-btn-secondary" onClick={handleCancel}>
+                    <X size={18} /> Cancel
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="profile-view">
-                <div className="profile-name-section">
-                  <h3>{user.name}</h3>
-                  <p className="profile-username">@{user.username}</p>
+              <div>
+                <h3 className="profile-name">{user.name}</h3>
+                <p className="profile-email">@{user.username}</p>
+
+                <div className="profile-btn-group">
+                  <button className="profile-btn profile-btn-primary" onClick={() => setIsEditing(true)}>
+                    <Edit2 size={18} /> Edit Profile
+                  </button>
                 </div>
 
-                <button className="btn-edit" onClick={() => setIsEditing(true)}>
-                  <Edit2 size={18} />
-                  Edit Profile
-                </button>
-
-                <div className="profile-info-grid">
-                  <div className="info-item">
+                <ul className="profile-info-list">
+                  <li className="profile-info-item">
                     <Mail size={20} />
-                    <div className="info-content">
-                      <span className="info-label">Email</span>
-                      <span className="info-value">{user.email}</span>
+                    <div>
+                      <span className="profile-info-label">Email</span>
+                      <span className="profile-info-value">{user.email}</span>
                     </div>
-                  </div>
-                  <div className="info-item">
+                  </li>
+                  <li className="profile-info-item">
                     <Calendar size={20} />
-                    <div className="info-content">
-                      <span className="info-label">Joined</span>
-                      <span className="info-value">{formatDate(user.createdAt)}</span>
+                    <div>
+                      <span className="profile-info-label">Joined</span>
+                      <span className="profile-info-value">{formatDate(user.createdAt)}</span>
                     </div>
-                  </div>
-                </div>
+                  </li>
+                </ul>
 
-                <div className="profile-bio-section">
-                  <h4>About</h4>
-                  <p>{user.bio}</p>
+                <div className="profile-section">
+                  <h4 className="profile-section-title">About</h4>
+                  <p className="profile-info-value">{user.bio}</p>
                 </div>
 
                 <div className="profile-stats">
-                  <div className="stat-item">
-                    <span className="stat-value">0</span>
-                    <span className="stat-label">Friends</span>
+                  <div className="profile-stat-card">
+                    <span className="profile-stat-value">0</span>
+                    <span className="profile-stat-label">Friends</span>
                   </div>
-                  <div className="stat-divider"></div>
-                  <div className="stat-item">
-                    <span className="stat-value">0</span>
-                    <span className="stat-label">Chats</span>
+                  <div className="profile-stat-card">
+                    <span className="profile-stat-value">0</span>
+                    <span className="profile-stat-label">Chats</span>
                   </div>
                 </div>
               </div>
