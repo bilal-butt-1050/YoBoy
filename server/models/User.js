@@ -62,7 +62,7 @@ const userSchema = new mongoose.Schema(
     resetPasswordExpire: Date,
     provider: {
       type: String,
-      enum: ['local', 'google', 'github'],
+      enum: ['local', 'google'],
       default: 'local',
     },
     providerId: {
