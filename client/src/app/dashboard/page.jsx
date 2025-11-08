@@ -18,6 +18,8 @@ import './dashboard.css'
 export default function DashboardPage() {
   const router = useRouter()
   const [activeView, setActiveView] = useState('chats')
+  const { user, isAuthenticated, authLoading, logout } = useAuth()
+  
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.push('/login')

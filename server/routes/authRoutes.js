@@ -4,7 +4,7 @@ import {
   register, login, logout, getMe,
   oauthSuccess
 } from '../controllers/authController.js';
-import { protect } from '../middleware/auth.js';
+import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
