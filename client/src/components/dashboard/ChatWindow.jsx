@@ -24,6 +24,7 @@ export default function ChatWindow({
   markAsRead,
   socketConnected,
   chatLoading,
+  isUserOnline
 }) {
   const [input, setInput] = useState('')
   const safeMessages = Array.isArray(messages) ? messages : []
@@ -37,7 +38,7 @@ export default function ChatWindow({
       .slice(0, 2)
 
   // reset input when conversation changes
-  useEffect(() => setInput(''), [selectedChat?._id, selectedChat?.id])
+  useEffect(() => setInput(''), [selectedChat])
 
   // scroll to bottom when new messages arrive or typing changes
   useEffect(() => {
@@ -110,11 +111,7 @@ export default function ChatWindow({
           <div>
             <h3>{selectedChat.name}</h3>
             <p>
-              {selectedChat.status === 'online'
-                ? 'Active now'
-                : socketConnected
-                ? 'Offline'
-                : 'Connecting...'}
+              {isUserOnline(selectedChat) ? 'Online' : 'Offline'}
             </p>
           </div>
         </div>

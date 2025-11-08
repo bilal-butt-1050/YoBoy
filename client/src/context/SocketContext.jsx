@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react'
 import { io } from 'socket.io-client'
+import { usersAPI } from '@/lib/api'
 
 const SocketContext = createContext()
 export const useSocket = () => {
@@ -16,18 +17,42 @@ export const SocketProvider = ({ children }) => {
   const [onlineUsers, setOnlineUsers] = useState([])
 
   useEffect(() => {
-    const newSocket = io(process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000', {
+    const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000'
+
+    // Create socket instance with cookies for auth
+    const newSocket = io(SERVER_URL, {
       transports: ['websocket'],
+      withCredentials: true,
     })
     setSocket(newSocket)
 
-    newSocket.on('connect', () => {
-      console.log('✅ Socket connected', newSocket.id)
+    // Handle connection
+    newSocket.on('connect', async () => {
+      console.log('✅ Connected to socket:', newSocket.id)
       setConnected(true)
+
+      // Update user status to online in DB
+      try {
+        await usersAPI.updateStatus({ online: true })
+      } catch (err) {
+        console.error('❌ Failed to update online status:', err.message)
+      }
     })
 
-    newSocket.on('disconnect', () => setConnected(false))
+    // Handle disconnection
+    newSocket.on('disconnect', async () => {
+      console.log('❌ Disconnected from socket')
+      setConnected(false)
 
+      // Update user status to offline
+      try {
+        await usersAPI.updateStatus({ online: false })
+      } catch (err) {
+        console.error('❌ Failed to update offline status:', err.message)
+      }
+    })
+
+    // Online user list events
     newSocket.on('users:online', (users) => setOnlineUsers(users))
     newSocket.on('user:online', ({ userId }) =>
       setOnlineUsers((prev) => [...new Set([...prev, userId])])
@@ -36,8 +61,13 @@ export const SocketProvider = ({ children }) => {
       setOnlineUsers((prev) => prev.filter((id) => id !== userId))
     )
 
-    return () => newSocket.disconnect()
+    // Cleanup on unmount
+    return () => {
+      newSocket.disconnect()
+    }
   }, [])
+
+  const isUserOnline = (id) => onlineUsers.includes(id)
 
   return (
     <SocketContext.Provider
@@ -45,7 +75,7 @@ export const SocketProvider = ({ children }) => {
         socket,
         connected,
         onlineUsers,
-        isUserOnline: (id) => onlineUsers.includes(id),
+        isUserOnline,
       }}
     >
       {children}

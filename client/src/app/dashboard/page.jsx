@@ -38,6 +38,7 @@ export default function DashboardPage() {
     onlineUsers,
     isTyping,
     loading: chatLoading,
+    isUserOnline
   } = useChat(user)
 
 
@@ -148,6 +149,7 @@ const handleSendMessage = async (content) => {
               markAsRead={handleMarkAsRead}
               socketConnected={socketConnected}
               chatLoading={chatLoading}
+              isUserOnline={isUserOnline}
             />
           </div>
         )
