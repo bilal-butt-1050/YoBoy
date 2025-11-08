@@ -1,6 +1,5 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import crypto from 'crypto';
 
 const userSchema = new mongoose.Schema(
   {
@@ -56,10 +55,6 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    verificationToken: String,
-    verificationTokenExpire: Date,
-    resetPasswordToken: String,
-    resetPasswordExpire: Date,
     provider: {
       type: String,
       enum: ['local', 'google'],
@@ -87,22 +82,11 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
 
-// Generate email verification token
-userSchema.methods.generateVerificationToken = function () {
-  const verificationToken = crypto.randomBytes(32).toString('hex');
-  this.verificationToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
-  this.verificationTokenExpire = Date.now() + 24 * 60 * 60 * 1000;
-  return verificationToken;
-};
 
 // Remove sensitive info
 userSchema.methods.toJSON = function () {
   const obj = this.toObject();
   delete obj.password;
-  delete obj.verificationToken;
-  delete obj.verificationTokenExpire;
-  delete obj.resetPasswordToken;
-  delete obj.resetPasswordExpire;
   return obj;
 };
 

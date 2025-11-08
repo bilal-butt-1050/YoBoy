@@ -1,120 +1,27 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import {
-  Send,
-  Smile,
-  Paperclip,
-  MoreVertical,
-  Phone,
-  Video,
-  Loader2,
-} from 'lucide-react'
+import { Send, Smile, Paperclip, MoreVertical, Phone, Video } from 'lucide-react'
 import './chatWindow.css'
 
-export default function ChatWindow({
-  selectedChat,
-  currentUser,
-  messages = [],
-  onSendMessage,
-  messagesEndRef,
-  startTyping,
-  stopTyping,
-  isTyping,
-  markAsRead,
-  socketConnected,
-  chatLoading,
-  isUserOnline
-}) {
-  const [input, setInput] = useState('')
-  const safeMessages = Array.isArray(messages) ? messages : []
-
-  const getUserInitials = (name) =>
-    (name || '')
-      .split(' ')
-      .map((w) => w[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2)
-
-  // reset input when conversation changes
-  useEffect(() => setInput(''), [selectedChat])
-
-  // scroll to bottom when new messages arrive or typing changes
-  useEffect(() => {
-    messagesEndRef?.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [safeMessages.length, isTyping])
-
-  // mark unread messages as read
-  useEffect(() => {
-    if (!currentUser || !selectedChat) return
-    safeMessages.forEach((m) => {
-      const receiverId =
-        m.receiver?._id?.toString() || m.receiver?.toString()
-      if (
-        receiverId === (currentUser._id || currentUser.id)?.toString() &&
-        !m.isRead &&
-        !m.isDeleted
-      ) {
-        markAsRead?.(m._id)
-      }
-    })
-  }, [safeMessages, currentUser, selectedChat, markAsRead])
-
-  const handleSubmit = async (e) => {
-    e?.preventDefault()
-    const trimmed = input.trim()
-    if (!trimmed || !selectedChat) return
-    await onSendMessage(trimmed)
-    setInput('')
-    stopTyping?.()
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSubmit()
-      return
-    }
-    startTyping?.()
-  }
-
-  if (!selectedChat) {
-    return (
-      <div className="chat-window-empty">
-        <h3>Select a conversation</h3>
-      </div>
-    )
-  }
-
-  if (chatLoading) {
-    return (
-      <div className="chat-window-loading">
-        <Loader2 className="animate-spin w-6 h-6 text-primary-500" />
-        <p>Loading messages...</p>
-      </div>
-    )
-  }
-
+export default function ChatWindowUI() {
   return (
     <div className="chat-window">
+      {/* Header */}
       <div className="chat-window-header">
         <div className="chat-user-info">
           <div className="chat-user-avatar">
-            {selectedChat.avatar ? (
-              <img src={selectedChat.avatar} alt={selectedChat.name} />
-            ) : (
-              getUserInitials(selectedChat.name)
-            )}
-            {selectedChat.status === 'online' && <div className="online-dot" />}
+            <img
+              src="https://via.placeholder.com/40"
+              alt="User Avatar"
+            />
+            <div className="online-dot" />
           </div>
           <div>
-            <h3>{selectedChat.name}</h3>
-            <p>
-              {isUserOnline(selectedChat) ? 'Online' : 'Offline'}
-            </p>
+            <h3>John Doe</h3>
+            <p>Online</p>
           </div>
         </div>
+
         <div className="chat-actions">
           <button className="action-btn">
             <Phone size={20} />
@@ -128,91 +35,49 @@ export default function ChatWindow({
         </div>
       </div>
 
+      {/* Messages */}
       <div className="messages-container">
-        {safeMessages.length === 0 ? (
-          <p className="text-gray-400 text-center mt-8">No messages yet.</p>
-        ) : (
-          safeMessages
-            .filter((m) => !m.isDeleted)
-            .map((msg) => {
-              const senderId =
-                msg.sender?._id?.toString() || msg.sender?.toString()
-              const isOwn =
-                senderId === (currentUser._id || currentUser.id)?.toString()
+        {/* Received message */}
+        <div className="message received">
+          <div className="message-avatar">JD</div>
+          <div className="message-content">
+            <div className="message-bubble">
+              <p>Hey! How’s it going?</p>
+            </div>
+            <span className="message-time">14:22</span>
+          </div>
+        </div>
 
-              return (
-                <div
-                  key={msg._id}
-                  className={`message ${isOwn ? 'sent' : 'received'}`}
-                >
-                  {!isOwn && (
-                    <div className="message-avatar">
-                      {getUserInitials(selectedChat.name)}
-                    </div>
-                  )}
-                  <div className="message-content">
-                    <div className="message-bubble">
-                      {msg.messageType === 'image' ? (
-                        <img
-                          src={msg.content}
-                          alt="sent file"
-                          className="message-image"
-                        />
-                      ) : msg.messageType === 'file' ? (
-                        <a
-                          href={msg.content}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          Download file
-                        </a>
-                      ) : (
-                        <p>{msg.content}</p>
-                      )}
-                    </div>
-                    <span className="message-time">
-                      {msg.createdAt
-                        ? new Date(msg.createdAt).toLocaleTimeString([], {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })
-                        : ''}
-                      {isOwn && msg.isRead && (
-                        <span className="read-indicator"> ✓✓</span>
-                      )}
-                    </span>
-                  </div>
-                </div>
-              )
-            })
-        )}
-        {isTyping && <div className="typing-indicator">Typing...</div>}
-        <div ref={messagesEndRef} />
+        {/* Sent message */}
+        <div className="message sent">
+          <div className="message-content">
+            <div className="message-bubble">
+              <p>All good, just working on something.</p>
+            </div>
+            <span className="message-time">
+              14:24 <span className="read-indicator">✓✓</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Typing indicator */}
+        <div className="typing-indicator">Typing...</div>
       </div>
 
-      <form className="message-input-container" onSubmit={handleSubmit}>
+      {/* Input */}
+      <form className="message-input-container">
         <button type="button" className="input-action-btn">
           <Paperclip size={20} />
         </button>
         <input
           type="text"
-          placeholder={
-              'Type a message...' 
-          }
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          // disabled={!socketConnected}
+          placeholder="Type a message..."
           className="message-input"
         />
         <button type="button" className="input-action-btn">
           <Smile size={20} />
         </button>
-        <button
-          type="submit"
-          className="send-btn"
-          disabled={!input?.trim()}
-        >
+        <button type="submit" className="send-btn">
           <Send size={20} />
         </button>
       </form>

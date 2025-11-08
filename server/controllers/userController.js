@@ -1,83 +1,74 @@
 import User from '../models/User.js';
 
-// GET ALL USERS
+// Get all users
 export const getUsers = async (req, res, next) => {
   try {
-    const users = await User.find().select('-password -verificationToken -resetPasswordToken');
+    const users = await User.find().select('-password');
     res.status(200).json({ success: true, users });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
 };
 
-// GET USER BY ID
+// Get single user by ID
 export const getUserById = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id).select('-password -verificationToken -resetPasswordToken');
+    const user = await User.findById(req.params.id).select('-password');
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
     res.status(200).json({ success: true, user });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
 };
 
-export const searchUsers = async (req, res) => {
+// Update profile (name, bio, avatar)
+export const updateProfile = async (req, res, next) => {
   try {
-    const { q } = req.query
-    if (!q || !q.trim()) {
-      return res.status(400).json({ message: 'Query is required' })
-    }
+    const { name, bio, avatar } = req.body;
+    const updatedUser = await User.findByIdAndUpdate(
+      req.user._id,
+      { name, bio, avatar },
+      { new: true, runValidators: true }
+    ).select('-password');
 
-    // Match only names or usernames that START with the search term
-    const users = await User.find({
-      $or: [
-        { name: { $regex: `^${q}`, $options: 'i' } },
-        { username: { $regex: `^${q}`, $options: 'i' } },
-      ],
-    }).select('-password')
-
-    res.json({ users })
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({ message: 'Server error' })
+    res.status(200).json({ success: true, user: updatedUser });
+  } catch (err) {
+    next(err);
   }
-}
+};
 
-
-// controllers/userController.js
-
-
+// Update online/offline status
 export const updateStatus = async (req, res, next) => {
   try {
-    const { status } = req.body
-    if (!['online', 'offline'].includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid status value'
-      })
-    }
+    const { status } = req.body;
+    if (!['online', 'offline'].includes(status))
+      return res.status(400).json({ success: false, message: 'Invalid status value' });
 
-    // Update DB
     const user = await User.findByIdAndUpdate(
       req.user._id,
       { status, lastSeen: Date.now() },
       { new: true }
-    ).select('_id username status lastSeen')
+    ).select('-password');
 
-    // 🔥 Emit to all connected clients via Socket.IO
-    const io = req.app.get('io') // get the socket.io instance you attached in server.js
-    io.emit('user:status', {
-      userId: user._id,
-      status: user.status,
-      lastSeen: user.lastSeen
-    })
-
-    res.status(200).json({
-      success: true,
-      message: `Status updated to ${status}`,
-      user
-    })
-  } catch (error) {
-    next(error)
+    res.status(200).json({ success: true, user });
+  } catch (err) {
+    next(err);
   }
-}
+};
+
+// Search users by name or username
+export const searchUsers = async (req, res, next) => {
+  try {
+    const query = req.query.q || '';
+    const users = await User.find({
+      $or: [
+        { name: { $regex: query, $options: 'i' } },
+        { username: { $regex: query, $options: 'i' } },
+      ],
+    }).select('-password');
+
+    res.status(200).json({ success: true, users });
+  } catch (err) {
+    next(err);
+  }
+};
