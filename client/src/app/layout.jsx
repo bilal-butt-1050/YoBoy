@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
 import { AuthProvider } from '../context/AuthContext'
-import { SocketProvider } from '../context/SocketContext'
 
 export default function RootLayout({ children }) {
   const pathname = usePathname()
@@ -23,13 +22,11 @@ export default function RootLayout({ children }) {
       </head>
       <body className="antialiased">
         <AuthProvider>
-          <SocketProvider>
             <div className="min-h-screen flex flex-col">
               {!hideNavbar && <Navbar />}
               <main className={hideFooter ? 'flex-grow' : 'flex-grow'}>{children}</main>
               {!hideFooter && <Footer />}
             </div>
-          </SocketProvider>
         </AuthProvider>
       </body>
     </html>
