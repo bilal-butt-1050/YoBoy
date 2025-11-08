@@ -75,7 +75,7 @@ export default function SearchUsers({ currentUser, onSelectUser }) {
                 <div className="user-card-actions">
                   <button
                     className="user-action-btn primary"
-                    onClick={() => onSelectUser?.(user)} // <-- key change
+                    onClick={() => onSelectUser?.(user)}
                   >
                     <MessageCircle size={18} />
                     Message

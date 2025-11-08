@@ -1,9 +1,56 @@
 'use client'
 
-import { Search, MoreVertical, Circle } from 'lucide-react'
+import { Search, MoreVertical } from 'lucide-react'
 import './chatList.css'
 
-export default function ChatListUI() {
+export default function ChatList({ chats, activeChat, onSelectChat, currentUser }) {
+  const getUserInitials = (name) =>
+    name?.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2) || '??'
+
+  const getOtherUser = (chat) => {
+    if (!chat?.members || chat.isGroup) return null
+    return chat.members.find((m) => m._id !== currentUser?._id)
+  }
+
+  const formatTime = (date) => {
+    if (!date) return ''
+    const d = new Date(date)
+    const now = new Date()
+    const diffMs = now - d
+    const diffMins = Math.floor(diffMs / 60000)
+
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins}m`
+    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h`
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  const getChatName = (chat) => {
+    if (chat.isGroup) return chat.name || 'Group Chat'
+    const other = getOtherUser(chat)
+    return other?.name || 'Unknown User'
+  }
+
+  const getChatAvatar = (chat) => {
+    if (chat.isGroup) return chat.name?.[0]?.toUpperCase() || 'G'
+    const other = getOtherUser(chat)
+    return other?.avatar || getUserInitials(other?.name)
+  }
+
+  const isUserOnline = (chat) => {
+    if (chat.isGroup) return false
+    const other = getOtherUser(chat)
+    return other?.status === 'online'
+  }
+
+  const getLastMessagePreview = (chat) => {
+    if (!chat.lastMessage) return 'No messages yet'
+    const msg = chat.lastMessage
+    const isOwn = msg.sender?._id === currentUser?._id
+    const prefix = isOwn ? 'You: ' : ''
+    return `${prefix}${msg.content?.substring(0, 30)}${msg.content?.length > 30 ? '...' : ''}`
+  }
+
   return (
     <div className="chat-list-container">
       {/* Header */}
@@ -26,55 +73,48 @@ export default function ChatListUI() {
 
       {/* Chat List */}
       <div className="chat-list">
-        {/* Chat Item */}
-        <div className="chat-item active">
-          <div className="chat-avatar-container">
-            <div className="chat-avatar">
-              <img
-                src="https://via.placeholder.com/40"
-                alt="User Avatar"
-              />
-            </div>
-            <div className="online-indicator" />
+        {chats.length === 0 ? (
+          <div className="empty-state">
+            <p>No conversations yet</p>
           </div>
+        ) : (
+          chats.map((chat) => {
+            const chatName = getChatName(chat)
+            const chatAvatar = getChatAvatar(chat)
+            const online = isUserOnline(chat)
+            const lastMessagePreview = getLastMessagePreview(chat)
+            const time = formatTime(chat.lastMessage?.createdAt || chat.updatedAt)
 
-          <div className="chat-info">
-            <div className="chat-top">
-              <h4>John Doe</h4>
-              <span className="chat-time">14:32</span>
-            </div>
-            <div className="chat-bottom">
-              <p className="last-message">Hey, how’s everything going?</p>
-            </div>
-          </div>
-        </div>
+            return (
+              <div
+                key={chat._id}
+                className={`chat-item ${activeChat?._id === chat._id ? 'active' : ''}`}
+                onClick={() => onSelectChat(chat)}
+              >
+                <div className="chat-avatar-container">
+                  <div className="chat-avatar">
+                    {typeof chatAvatar === 'string' && chatAvatar.startsWith('http') ? (
+                      <img src={chatAvatar} alt={chatName} />
+                    ) : (
+                      chatAvatar
+                    )}
+                  </div>
+                  {online && <div className="online-indicator" />}
+                </div>
 
-        {/* Another Chat Item */}
-        <div className="chat-item">
-          <div className="chat-avatar-container">
-            <div className="chat-avatar">
-              <img
-                src="https://via.placeholder.com/40"
-                alt="User Avatar"
-              />
-            </div>
-          </div>
-
-          <div className="chat-info">
-            <div className="chat-top">
-              <h4>Jane Smith</h4>
-              <span className="chat-time">09:47</span>
-            </div>
-            <div className="chat-bottom">
-              <p className="last-message no-msg">No messages yet</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Empty State Example */}
-        <div className="empty-state">
-          <p>No conversations yet</p>
-        </div>
+                <div className="chat-info">
+                  <div className="chat-top">
+                    <h4>{chatName}</h4>
+                    <span className="chat-time">{time}</span>
+                  </div>
+                  <div className="chat-bottom">
+                    <p className="last-message">{lastMessagePreview}</p>
+                  </div>
+                </div>
+              </div>
+            )
+          })
+        )}
       </div>
     </div>
   )
