@@ -59,11 +59,20 @@ export const updateStatus = async (req, res, next) => {
 // Search users by name or username
 export const searchUsers = async (req, res, next) => {
   try {
-    const query = req.query.q || '';
+    const query = req.query.q?.trim() || '';
+
+    // If there's no query, return an empty array (optional)
+    if (!query) {
+      return res.status(200).json({ success: true, users: [] });
+    }
+
+    // Regex that matches only names starting with the query
+    const regex = new RegExp(`^${query}`, 'i');
+
     const users = await User.find({
       $or: [
-        { name: { $regex: query, $options: 'i' } },
-        { username: { $regex: query, $options: 'i' } },
+        { name: { $regex: regex } },
+        { username: { $regex: regex } },
       ],
     }).select('-password');
 

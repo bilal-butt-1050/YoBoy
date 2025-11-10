@@ -50,6 +50,7 @@ export const chatsAPI = {
   createOrGetDM: (userId) => api.post('/chats/dm', { userId }),
   createGroupChat: (data) => api.post('/chats/group', data),
   getUserChats: () => api.get('/chats'),
+  searchChats: (query) => api.get(`/chats/search?q=${encodeURIComponent(query)}`), // <= added
 }
 
 // -------- MESSAGES API --------

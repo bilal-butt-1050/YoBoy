@@ -61,3 +61,45 @@ export const getUserChats = async (req, res, next) => {
     next(err);
   }
 };
+
+
+export const searchChats = async (req, res, next) => {
+  try {
+    const userId = req.user?._id;
+    const query = req.query.q?.trim() || '';
+
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+
+    if (!query) {
+      return res.status(200).json({ success: true, chats: [] });
+    }
+
+    // Step 1: Find all chats the user is in
+    const userChats = await Chat.find({ members: userId })
+      .populate('members', 'name username')
+      .populate('lastMessage');
+
+    // Step 2: Filter them based on chat name or member name/username
+    const regex = new RegExp(`^${query}`, 'i'); // only match from start
+
+    const filteredChats = userChats.filter(chat => {
+      if (chat.isGroup) {
+        // match group chat name
+        return regex.test(chat.name);
+      } else {
+        // match the *other* member’s name or username
+        const otherMember = chat.members.find(
+          member => member._id.toString() !== userId.toString()
+        );
+        return otherMember && (regex.test(otherMember.name) || regex.test(otherMember.username));
+      }
+    });
+
+    res.status(200).json({ success: true, chats: filteredChats });
+  } catch (err) {
+    next(err);
+  }
+};
+

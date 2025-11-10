@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useEffect }from 'react'
+import React, { useEffect, useState}from 'react'
 import { Search, MoreVertical } from 'lucide-react'
+import {chatsAPI} from "../../lib/api"
 import './chatList.css'
 
 export default function ChatList({ chats, activeChat, onSelectChat, currentUser }) {
@@ -100,8 +101,8 @@ export default function ChatList({ chats, activeChat, onSelectChat, currentUser 
                     ) : (
                       chatAvatar
                     )}
+                    {online && <div className="online-indicator" />}
                   </div>
-                  {online && <div className="online-indicator" />}
                 </div>
 
                 <div className="chat-info">
