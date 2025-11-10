@@ -111,13 +111,13 @@
 }
 
 .chat-avatar-container {
-  position: relative;
+  position: relative; 
   flex-shrink: 0;
 }
 
 .chat-avatar {
-  width: 48px;
-  height: 48px;
+  width: 50px;
+  height: 50px;
   border-radius: 50%;
   background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
   display: flex;
@@ -126,24 +126,28 @@
   color: white;
   font-weight: 600;
   font-size: 16px;
-  overflow: hidden;
+  position: relative; /* add this */
 }
 
 .chat-avatar img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: 50%;
 }
 
 .online-indicator {
   position: absolute;
-  bottom: 2px;
-  right: 2px;
+  bottom: 0; /* at the bottom of avatar */
+  right: 0;  /* at the right corner */
+  transform: translate(25%, 25%); /* make it slightly outside to overlap nicely */
   width: 12px;
   height: 12px;
   background: #10b981;
-  border: 2px solid #0a0e27;
+  border: 2px solid #0a0e27; /* keeps contrast with avatar bg */
   border-radius: 50%;
+  margin-right: 3px;
+  margin-bottom: 3px;
 }
 
 .chat-info {

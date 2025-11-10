@@ -1,8 +1,6 @@
 'use client'
 
-import React, { useEffect, useState}from 'react'
 import { Search, MoreVertical } from 'lucide-react'
-import {chatsAPI} from "../../lib/api"
 import './chatList.css'
 
 export default function ChatList({ chats, activeChat, onSelectChat, currentUser }) {

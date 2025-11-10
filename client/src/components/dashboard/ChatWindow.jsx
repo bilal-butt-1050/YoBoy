@@ -9,17 +9,17 @@ export default function ChatWindow({ activeChat, messages, onSendMessage, sendin
   const messagesEndRef = useRef(null)
   const messagesContainerRef = useRef(null)
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+      console.log('📌 Auto-scrolled to latest message')
     }
   }, [messages])
 
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!messageText.trim() || sending) return
-
+    console.log('✉️ Sending message:', messageText)
     onSendMessage(messageText)
     setMessageText('')
   }
@@ -32,17 +32,13 @@ export default function ChatWindow({ activeChat, messages, onSendMessage, sendin
     return activeChat.members.find((m) => m._id !== currentUser?._id)
   }
 
-  const formatTime = (date) => {
-    if (!date) return ''
-    return new Date(date).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true,
-    })
-  }
+  const formatTime = (date) =>
+    date
+      ? new Date(date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+      : ''
 
-  // Empty state
   if (!activeChat) {
+    console.log('ℹ️ No active chat selected')
     return (
       <div className="chat-window-empty">
         <div className="empty-chat-state">
@@ -55,9 +51,7 @@ export default function ChatWindow({ activeChat, messages, onSendMessage, sendin
   }
 
   const otherUser = getOtherUser()
-  const chatName = activeChat.isGroup
-    ? activeChat.name || 'Group Chat'
-    : otherUser?.name || 'Unknown User'
+  const chatName = activeChat.isGroup ? activeChat.name || 'Group Chat' : otherUser?.name || 'Unknown User'
   const chatAvatar = activeChat.isGroup
     ? activeChat.name?.[0]?.toUpperCase() || 'G'
     : otherUser?.avatar || getUserInitials(otherUser?.name)
@@ -65,7 +59,6 @@ export default function ChatWindow({ activeChat, messages, onSendMessage, sendin
 
   return (
     <div className="chat-window">
-      {/* Header */}
       <div className="chat-window-header">
         <div className="chat-user-info">
           <div className="chat-user-avatar">
@@ -81,21 +74,13 @@ export default function ChatWindow({ activeChat, messages, onSendMessage, sendin
             <p className="user-status">{isOnline ? 'Online' : 'Offline'}</p>
           </div>
         </div>
-
         <div className="chat-actions">
-          <button className="action-btn" title="Voice Call">
-            <Phone size={20} />
-          </button>
-          <button className="action-btn" title="Video Call">
-            <Video size={20} />
-          </button>
-          <button className="action-btn" title="More Options">
-            <MoreVertical size={20} />
-          </button>
+          <button className="action-btn" title="Voice Call"><Phone size={20} /></button>
+          <button className="action-btn" title="Video Call"><Video size={20} /></button>
+          <button className="action-btn" title="More Options"><MoreVertical size={20} /></button>
         </div>
       </div>
 
-      {/* Messages */}
       <div className="messages-container" ref={messagesContainerRef}>
         {messages.length === 0 ? (
           <div className="empty-chat-state">
@@ -111,18 +96,11 @@ export default function ChatWindow({ activeChat, messages, onSendMessage, sendin
               <div key={msg._id} className={`message ${isSent ? 'sent' : 'received'}`}>
                 {!isSent && (
                   <div className="message-avatar">
-                    {msg.sender?.avatar ? (
-                      <img src={msg.sender.avatar} alt={senderName} />
-                    ) : (
-                      senderInitials
-                    )}
+                    {msg.sender?.avatar ? <img src={msg.sender.avatar} alt={senderName} /> : senderInitials}
                   </div>
                 )}
-
                 <div className="message-content">
-                  <div className="message-bubble">
-                    <p>{msg.content}</p>
-                  </div>
+                  <div className="message-bubble"><p>{msg.content}</p></div>
                   <span className="message-time">
                     {formatTime(msg.createdAt)}
                     {isSent && msg.isRead && <span className="read-indicator"> ✓✓</span>}
@@ -135,11 +113,8 @@ export default function ChatWindow({ activeChat, messages, onSendMessage, sendin
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
       <form className="message-input-container" onSubmit={handleSubmit}>
-        <button type="button" className="input-action-btn" title="Attach File">
-          <Paperclip size={20} />
-        </button>
+        <button type="button" className="input-action-btn" title="Attach File"><Paperclip size={20} /></button>
         <input
           type="text"
           placeholder="Type a message..."
@@ -148,9 +123,7 @@ export default function ChatWindow({ activeChat, messages, onSendMessage, sendin
           onChange={(e) => setMessageText(e.target.value)}
           disabled={sending}
         />
-        <button type="button" className="input-action-btn" title="Add Emoji">
-          <Smile size={20} />
-        </button>
+        <button type="button" className="input-action-btn" title="Add Emoji"><Smile size={20} /></button>
         <button type="submit" className="send-btn" disabled={sending || !messageText.trim()}>
           {sending ? <Loader2 size={20} className="spin" /> : <Send size={20} />}
         </button>

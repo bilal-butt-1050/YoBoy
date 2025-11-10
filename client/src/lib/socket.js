@@ -1,13 +1,5 @@
-// lib/socket.js (client)
 import { io } from 'socket.io-client'
 import cookie from 'cookie'
-
-/**
- * Simple singleton socket helper.
- * - Reads token from document.cookie (cookie name: token)
- * - Connects with { auth: { token } } AND withCredentials true (so server can read cookie too).
- * - Exposes useful methods and event registration helpers.
- */
 
 let socket = null
 
@@ -17,10 +9,12 @@ function getTokenFromCookie() {
     const parsed = cookie.parse(document.cookie || '')
     return parsed.token || null
   } catch (e) {
+    console.warn('Failed to parse cookie:', e.message)
     return null
   }
-}   
+}
 
+// Connect socket (singleton per tab)
 export function connectSocket({ url = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000', token } = {}) {
   if (socket && socket.connected) return socket
 
@@ -29,91 +23,99 @@ export function connectSocket({ url = process.env.NEXT_PUBLIC_SERVER_URL || 'htt
   socket = io(url, {
     transports: ['websocket'],
     withCredentials: true,
-    auth: { token: tokenToSend }, // fallback when cookie is not forwarded
+    auth: { token: tokenToSend },
   })
 
   socket.on('connect', () => {
-    console.log('✅ socket connected', socket.id)
+    console.log('✅ Socket connected:', socket.id)
   })
 
   socket.on('connect_error', (err) => {
-    console.warn('⚠️ socket connect_error', err.message)
+    console.warn('⚠️ Socket connect_error:', err.message)
   })
 
   socket.on('disconnect', (reason) => {
-    console.log('🔌 socket disconnected', reason)
+    console.log('🔌 Socket disconnected:', reason)
   })
 
   return socket
 }
 
+// Disconnect socket (clean per tab)
 export function disconnectSocket() {
+  if (!socket) return
   try {
-    if (socket) {
-      socket.disconnect()
-      socket = null
-    }
+    socket.disconnect()
+    console.log('🔌 Socket manually disconnected')
+    socket = null
   } catch (err) {
-    console.warn('disconnectSocket error', err)
+    console.warn('disconnectSocket error:', err.message)
   }
 }
 
-// --------- helpers ------------
-// Join a chat room (server verifies membership)
+// ---------- Socket helpers ----------
 export function joinChat(chatId, cb) {
   if (!socket) return
   socket.emit('chat:join', { chatId }, cb)
+  console.log(`➡️ joinChat emitted: ${chatId}`)
 }
 
 export function leaveChat(chatId, cb) {
   if (!socket) return
   socket.emit('chat:leave', { chatId }, cb)
+  console.log(`⬅️ leaveChat emitted: ${chatId}`)
 }
 
-// Send message; ack receives { success, message= }
 export function sendMessage({ chatId, content, messageType = 'text' }, ack) {
   if (!socket) return
   socket.emit('message:send', { chatId, content, messageType }, ack)
-  console.log('➡️ message:send emitted', content);
+  console.log(`➡️ message:send emitted to chat:${chatId}`, content)
 }
 
-// Mark a message as read
 export function markAsRead(messageId, ack) {
   if (!socket) return
   socket.emit('message:read', { messageId }, ack)
+  console.log(`✔️ message:read emitted: ${messageId}`)
 }
 
-// Convenience event binding
+// ---------- Event listeners ----------
 export function onNewMessage(handler) {
   if (!socket) return
   socket.on('message:receive', handler)
-  console.log('➡️ listening for message:receive');
+  console.log('👂 Listening for message:receive')
 }
+
 export function offNewMessage(handler) {
   if (!socket) return
   socket.off('message:receive', handler)
-  console.log('➡️ stopped listening for message:receive');
+  console.log('🛑 Stopped listening for message:receive')
 }
 
 export function onMessageRead(handler) {
   if (!socket) return
   socket.on('message:read', handler)
+  console.log('👂 Listening for message:read')
 }
+
 export function offMessageRead(handler) {
   if (!socket) return
   socket.off('message:read', handler)
+  console.log('🛑 Stopped listening for message:read')
 }
 
 export function onUserStatus(handler) {
   if (!socket) return
   socket.on('user:status', handler)
+  console.log('👂 Listening for user:status')
 }
+
 export function offUserStatus(handler) {
   if (!socket) return
   socket.off('user:status', handler)
+  console.log('🛑 Stopped listening for user:status')
 }
 
-// Export the socket instance for advanced usage (if needed)
+// Access socket directly if needed
 export function getSocket() {
   return socket
 }
