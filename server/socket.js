@@ -138,6 +138,7 @@ export default function initSocket(httpServer) {
 
         // Emit to chat room
         io.to(`chat:${chatId}`).emit('message:receive', message)
+        console.log('⬅️ message:receive emitted to chat:', chatId);
 
         // ack back to sender
         if (typeof ack === 'function') ack({ success: true, message })

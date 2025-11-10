@@ -19,7 +19,7 @@ function getTokenFromCookie() {
   } catch (e) {
     return null
   }
-}
+}   
 
 export function connectSocket({ url = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:5000', token } = {}) {
   if (socket && socket.connected) return socket
@@ -70,10 +70,11 @@ export function leaveChat(chatId, cb) {
   socket.emit('chat:leave', { chatId }, cb)
 }
 
-// Send message; ack receives { success, message }
+// Send message; ack receives { success, message= }
 export function sendMessage({ chatId, content, messageType = 'text' }, ack) {
   if (!socket) return
   socket.emit('message:send', { chatId, content, messageType }, ack)
+  console.log('➡️ message:send emitted', content);
 }
 
 // Mark a message as read
@@ -86,10 +87,12 @@ export function markAsRead(messageId, ack) {
 export function onNewMessage(handler) {
   if (!socket) return
   socket.on('message:receive', handler)
+  console.log('➡️ listening for message:receive');
 }
 export function offNewMessage(handler) {
   if (!socket) return
   socket.off('message:receive', handler)
+  console.log('➡️ stopped listening for message:receive');
 }
 
 export function onMessageRead(handler) {

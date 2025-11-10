@@ -1,5 +1,6 @@
 'use client'
 
+import React, { useEffect }from 'react'
 import { Search, MoreVertical } from 'lucide-react'
 import './chatList.css'
 
@@ -50,6 +51,7 @@ export default function ChatList({ chats, activeChat, onSelectChat, currentUser 
     const prefix = isOwn ? 'You: ' : ''
     return `${prefix}${msg.content?.substring(0, 30)}${msg.content?.length > 30 ? '...' : ''}`
   }
+
 
   return (
     <div className="chat-list-container">
