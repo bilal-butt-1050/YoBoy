@@ -6,6 +6,8 @@ import passport from './config/passport.js'
 import routes from './routes/index.js'
 import errorHandler from './middleware/errorMiddleware.js'
 import connectDB from './config/db.js'
+import fileUpload from 'express-fileupload'
+
 
 dotenv.config()
 
@@ -14,6 +16,12 @@ const app = express()
 // Middleware
 app.use(cookieParser())
 app.use(express.json())
+
+app.use(fileUpload({
+  createParentPath: true, // auto-create folder if doesn't exist
+  limits: { fileSize: 5 * 1024 * 1024 }, // max 5MB
+  abortOnLimit: true,
+}))
 
 app.use(
   cors({

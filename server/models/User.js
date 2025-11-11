@@ -37,6 +37,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    avatarPublicId: {
+      type: String
+   },
+
     bio: {
       type: String,
       default: 'Hey there! I am using ChatFlow.',

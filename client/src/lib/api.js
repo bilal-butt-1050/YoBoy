@@ -41,8 +41,17 @@ export const usersAPI = {
   getUsers: () => api.get('/users'),
   searchUsers: (query) => api.get(`/users/search?q=${query}`),
   getUserById: (id) => api.get(`/users/${id}`),
-  updateProfile: (data) => api.put('/users/profile', data),
   updateStatus: (status) => api.put('/users/status', { status }),
+  // ✅ Updated for Cloudinary JSON upload (no FormData needed)
+  updateProfile: async (data) => {
+    console.log('🧠 Sending profile update payload:', data)
+
+    // backend expects base64 avatar (not file form data)
+    return api.put('/users/profile', data, {
+      headers: { 'Content-Type': 'application/json' },
+    })
+  },
+
 }
 
 // -------- CHATS API --------
