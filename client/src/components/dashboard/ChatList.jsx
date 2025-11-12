@@ -1,9 +1,16 @@
 'use client'
 
-import { Search, MoreVertical } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Search, MoreVertical, Loader2 } from 'lucide-react'
+import { chatsAPI } from '@/lib/api'
 import './chatList.css'
 
 export default function ChatList({ chats, activeChat, onSelectChat, currentUser }) {
+  const [searchTerm, setSearchTerm] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [loading, setLoading] = useState(false)
+  const debounceTimeoutRef = useRef(null)
+
   const getUserInitials = (name) =>
     name?.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2) || '??'
 
@@ -51,6 +58,51 @@ export default function ChatList({ chats, activeChat, onSelectChat, currentUser 
     return `${prefix}${msg.content?.substring(0, 30)}${msg.content?.length > 30 ? '...' : ''}`
   }
 
+  // --- Search handler with debounce ---
+  const handleSearch = useCallback((query) => {
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current)
+    }
+
+    debounceTimeoutRef.current = setTimeout(async () => {
+      if (!query.trim()) {
+        setSearchResults([])
+        setLoading(false)
+        return
+      }
+
+      try {
+        setLoading(true)
+        const res = await chatsAPI.searchChats(query)
+        setSearchResults(res.chats || [])
+      } catch (err) {
+        console.error('Search error:', err.message)
+        setSearchResults([])
+      } finally {
+        setLoading(false)
+      }
+    }, 400)
+  }, [])
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  // Handle search when searchTerm changes
+  useEffect(() => {
+    handleSearch(searchTerm)
+  }, [searchTerm, handleSearch])
+
+  const displayChats = searchTerm.trim() ? searchResults : chats
+  const showSearchResults = searchTerm.trim() && !loading
+  const showNoResults = searchTerm.trim() && !loading && displayChats.length === 0
+  const showRegularChats = !searchTerm.trim() && !loading
+  const showEmptyState = !searchTerm.trim() && chats.length === 0
 
   return (
     <div className="chat-list-container">
@@ -69,53 +121,116 @@ export default function ChatList({ chats, activeChat, onSelectChat, currentUser 
           type="text"
           placeholder="Search conversations..."
           className="search-input"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
         />
+        {loading && (
+          <div className="search-loading">
+            <Loader2 size={16} className="spin" />
+          </div>
+        )}
       </div>
 
       {/* Chat List */}
       <div className="chat-list">
-        {chats.length === 0 ? (
+        {/* Loading State */}
+        {loading && (
+          <div className="loading-state">
+            <Loader2 size={20} className="spin" />
+            <p>Searching conversations...</p>
+          </div>
+        )}
+
+        {/* No Results State */}
+        {showNoResults && (
+          <div className="empty-state">
+            <p>No conversations found for "{searchTerm}"</p>
+          </div>
+        )}
+
+        {/* Empty Chats State */}
+        {showEmptyState && (
           <div className="empty-state">
             <p>No conversations yet</p>
+            <span>Start a new conversation to see it here</span>
           </div>
-        ) : (
-          chats.map((chat) => {
-            const chatName = getChatName(chat)
-            const chatAvatar = getChatAvatar(chat)
-            const online = isUserOnline(chat)
-            const lastMessagePreview = getLastMessagePreview(chat)
-            const time = formatTime(chat.lastMessage?.createdAt || chat.updatedAt)
+        )}
 
-            return (
-              <div
-                key={chat._id}
-                className={`chat-item ${activeChat?._id === chat._id ? 'active' : ''}`}
-                onClick={() => onSelectChat(chat)}
-              >
-                <div className="chat-avatar-container">
-                  <div className="chat-avatar">
-                    {typeof chatAvatar === 'string' && chatAvatar.startsWith('http') ? (
-                      <img src={chatAvatar} alt={chatName} />
-                    ) : (
-                      chatAvatar
-                    )}
-                    {online && <div className="online-indicator" />}
-                  </div>
-                </div>
+        {/* Regular Chats */}
+        {showRegularChats && chats.map((chat) => {
+          const chatName = getChatName(chat)
+          const chatAvatar = getChatAvatar(chat)
+          const online = isUserOnline(chat)
+          const lastMessagePreview = getLastMessagePreview(chat)
+          const time = formatTime(chat.lastMessage?.createdAt || chat.updatedAt)
 
-                <div className="chat-info">
-                  <div className="chat-top">
-                    <h4>{chatName}</h4>
-                    <span className="chat-time">{time}</span>
-                  </div>
-                  <div className="chat-bottom">
-                    <p className="last-message">{lastMessagePreview}</p>
-                  </div>
+          return (
+            <div
+              key={chat._id}
+              className={`chat-item ${activeChat?._id === chat._id ? 'active' : ''}`}
+              onClick={() => onSelectChat(chat)}
+            >
+              <div className="chat-avatar-container">
+                <div className="chat-avatar">
+                  {typeof chatAvatar === 'string' && chatAvatar.startsWith('http') ? (
+                    <img src={chatAvatar} alt={chatName} />
+                  ) : (
+                    chatAvatar
+                  )}
+                  {online && <div className="online-indicator" />}
                 </div>
               </div>
-            )
-          })
-        )}
+
+              <div className="chat-info">
+                <div className="chat-top">
+                  <h4>{chatName}</h4>
+                  <span className="chat-time">{time}</span>
+                </div>
+                <div className="chat-bottom">
+                  <p className="last-message">{lastMessagePreview}</p>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+
+        {/* Search Results */}
+        {showSearchResults && displayChats.map((chat) => {
+          const chatName = getChatName(chat)
+          const chatAvatar = getChatAvatar(chat)
+          const online = isUserOnline(chat)
+          const lastMessagePreview = getLastMessagePreview(chat)
+          const time = formatTime(chat.lastMessage?.createdAt || chat.updatedAt)
+
+          return (
+            <div
+              key={chat._id}
+              className={`chat-item ${activeChat?._id === chat._id ? 'active' : ''}`}
+              onClick={() => onSelectChat(chat)}
+            >
+              <div className="chat-avatar-container">
+                <div className="chat-avatar">
+                  {typeof chatAvatar === 'string' && chatAvatar.startsWith('http') ? (
+                    <img src={chatAvatar} alt={chatName} />
+                  ) : (
+                    chatAvatar
+                  )}
+                  {online && <div className="online-indicator" />}
+                </div>
+              </div>
+
+              <div className="chat-info">
+                <div className="chat-top">
+                  <h4>{chatName}</h4>
+                  <span className="chat-time">{time}</span>
+                </div>
+                <div className="chat-bottom">
+                  <p className="last-message">{lastMessagePreview}</p>
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

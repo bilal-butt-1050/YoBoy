@@ -1,4 +1,6 @@
 import Chat from '../models/Chat.js';
+import User from '../models/User.js'
+
 
 
 // Create or get a DM chat
@@ -65,41 +67,47 @@ export const getUserChats = async (req, res, next) => {
 
 export const searchChats = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
-    const query = req.query.q?.trim() || '';
+    const q = req.query.q?.trim() || '';
+    const userId = req.user._id;
 
-    if (!userId) {
-      return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-
-    if (!query) {
+    // If no query, return empty list (optional)
+    if (!q) {
       return res.status(200).json({ success: true, chats: [] });
     }
 
-    // Step 1: Find all chats the user is in
-    const userChats = await Chat.find({ members: userId })
-      .populate('members', 'name username')
-      .populate('lastMessage');
+    // Create regex for substring matching (matches anywhere in the string, case-insensitive)
+    const regex = new RegExp(q, 'i');
 
-    // Step 2: Filter them based on chat name or member name/username
-    const regex = new RegExp(`^${query}`, 'i'); // only match from start
+    // Find matching users (for DM chat search)
+    const matchingUsers = await User.find({
+      $or: [
+        { name: { $regex: regex } }, 
+        { username: { $regex: regex } }
+      ],
+    }).select('_id');
 
-    const filteredChats = userChats.filter(chat => {
-      if (chat.isGroup) {
-        // match group chat name
-        return regex.test(chat.name);
-      } else {
-        // match the *other* member’s name or username
-        const otherMember = chat.members.find(
-          member => member._id.toString() !== userId.toString()
-        );
-        return otherMember && (regex.test(otherMember.name) || regex.test(otherMember.username));
-      }
-    });
+    const userIds = matchingUsers.map((u) => u._id);
 
-    res.status(200).json({ success: true, chats: filteredChats });
+    // Find chats where:
+    // - group name contains query substring, and user is a member
+    // - OR it's a 1-on-1 chat where one of the members matches
+    const chats = await Chat.find({
+      $and: [
+        { members: userId },
+        {
+          $or: [
+            { isGroup: true, name: { $regex: regex } },
+            { isGroup: false, members: { $in: userIds } },
+          ],
+        },
+      ],
+    })
+      .populate('members', '-password')
+      .populate('lastMessage')
+      .sort({ updatedAt: -1 });
+
+    res.status(200).json({ success: true, chats });
   } catch (err) {
     next(err);
   }
 };
-
