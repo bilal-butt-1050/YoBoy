@@ -44,33 +44,6 @@ export const updateStatus = async (req, res, next) => {
   }
 };
 
-// Search users by name or username
-export const searchUsers = async (req, res, next) => {
-  try {
-    const query = req.query.q?.trim() || '';
-
-    // If there's no query, return an empty array (optional)
-    if (!query) {
-      return res.status(200).json({ success: true, users: [] });
-    }
-
-    // Regex that matches only names starting with the query
-    const regex = new RegExp(`^${query}`, 'i');
-
-    const users = await User.find({
-      $or: [
-        { name: { $regex: regex } },
-        { username: { $regex: regex } },
-      ],
-    }).select('-password');
-
-    res.status(200).json({ success: true, users });
-  } catch (err) {
-    next(err);
-  }
-};
-
-
 
 // === Cloudinary setup ===
 cloudinary.v2.config({
@@ -150,3 +123,95 @@ export const updateProfile = async (req, res) => {
     res.status(500).json({ message: 'Server error while updating profile' })
   }
 }
+
+
+export const searchUsers = async (req, res, next) => {
+  try {
+    const query = req.query.q?.trim() || '';
+
+    // If there's no query, return an empty array
+    if (!query) {
+      return res.status(200).json({ 
+        success: true, 
+        users: [] 
+      });
+    }
+
+    // Validate query length to prevent very long regex
+    if (query.length > 50) {
+      return res.status(400).json({
+        success: false,
+        message: 'Search query too long. Maximum 50 characters allowed.'
+      });
+    }
+
+    // Validate query for potentially dangerous characters
+    const dangerousPattern = /[\\^$*+?.()|[\]{}]/;
+    if (dangerousPattern.test(query)) {
+      // Instead of failing, escape the regex special characters
+      const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`^${escapedQuery}`, 'i');
+
+      const users = await User.find({
+        $or: [
+          { name: { $regex: regex } },
+          { username: { $regex: regex } },
+        ],
+      }).select('-password').limit(50); // Limit results for performance
+
+      return res.status(200).json({ 
+        success: true, 
+        users 
+      });
+    }
+
+    // Safe query - create regex directly
+    const regex = new RegExp(`^${query}`, 'i');
+
+    const users = await User.find({
+      $or: [
+        { name: { $regex: regex } },
+        { username: { $regex: regex } },
+      ],
+    })
+      .select('-password')
+      .limit(50) // Limit results for performance
+      .catch(dbError => {
+        // Handle database errors specifically
+        console.error('Database query error:', dbError);
+        throw new Error('Failed to search users due to database error');
+      });
+
+    // Ensure users is always an array
+    const safeUsers = Array.isArray(users) ? users : [];
+
+    res.status(200).json({ 
+      success: true, 
+      users: safeUsers 
+    });
+
+  } catch (err) {
+    console.error('Search users error:', err);
+
+    // Handle specific error types
+    if (err.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid search parameters'
+      });
+    }
+
+    if (err.name === 'MongoNetworkError' || err.name === 'MongoTimeoutError') {
+      return res.status(503).json({
+        success: false,
+        message: 'Search service temporarily unavailable. Please try again later.'
+      });
+    }
+
+    // Generic error response
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred while searching for users'
+    });
+  }
+};
